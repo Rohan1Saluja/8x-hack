@@ -100,14 +100,30 @@ def test_create_idempotency_and_validation(client, token):
         )
 
 
-def test_private_schema_and_bucket(postgres):
+def test_private_schema(postgres):
     with psycopg.connect(postgres) as conn:
-        assert conn.execute(
-            "select public from storage.buckets where id='recordings'"
-        ).fetchone() == (False,)
         assert conn.execute("select has_schema_privilege('anon','app','USAGE')").fetchone() == (
             False,
         )
         assert conn.execute(
             "select has_table_privilege('authenticated','app.meetings','SELECT')"
         ).fetchone() == (False,)
+
+
+def test_separate_private_bucket_setup(postgres):
+    from pathlib import Path
+
+    with psycopg.connect(postgres) as conn, conn.transaction(force_rollback=True):
+        conn.execute("create schema storage")
+        conn.execute(
+            "create table storage.buckets(id text primary key, name text, public boolean, "
+            "file_size_limit bigint, allowed_mime_types text[])"
+        )
+        # Strip the script's transaction wrapper so this test can roll back its fixture.
+        sql = (Path(__file__).parents[2] / "supabase/setup/recordings_bucket.sql").read_text()
+        sql = sql.replace("begin;", "").replace("commit;", "")
+        conn.execute(sql)
+        conn.execute(sql)
+        assert conn.execute("select public, file_size_limit from storage.buckets").fetchall() == [
+            (False, 24000000)
+        ]

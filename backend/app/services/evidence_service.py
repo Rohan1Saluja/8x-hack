@@ -138,7 +138,7 @@ def transcribe(meeting_id: UUID, owner):
     if lease is None:
         return {"status": "ready"}
     try:
-        url = storage.playback_url(meeting["recording_key"])["url"]
+        url = storage.transcription_source(meeting["recording_key"])
         segments = ai.transcribe(meeting_id, url, meeting["duration_seconds"])
         with db.connection() as conn:
             jobs.finish(conn, meeting_id, "transcribe", lease)

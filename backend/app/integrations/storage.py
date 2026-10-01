@@ -4,6 +4,7 @@ import httpx
 
 from app.config import settings
 from app.errors import fail
+from app.integrations import local_storage
 
 
 def storage_request(method: str, path: str, **kwargs):
@@ -22,6 +23,8 @@ def storage_request(method: str, path: str, **kwargs):
 
 def playback_url(key: str):
     config = settings()
+    if config.recording_storage == "local":
+        return local_storage.local_playback_url(key)
     path = f"/object/sign/{quote(config.recording_bucket, safe='')}/{quote(key, safe='/')}"
     body = storage_request("POST", path, json={"expiresIn": config.playback_url_seconds}).json()
     signed = body.get("signedURL") or body.get("signedUrl")
@@ -34,6 +37,14 @@ def playback_url(key: str):
 
 
 def delete_recording(key: str):
+    if settings().recording_storage == "local":
+        return local_storage.delete_recording(key)
     storage_request(
         "DELETE", f"/object/{quote(settings().recording_bucket, safe='')}", json={"prefixes": [key]}
     )
+
+
+def transcription_source(key: str):
+    if settings().recording_storage == "local":
+        return local_storage.recording_path(key)
+    return playback_url(key)["url"]

@@ -1,6 +1,7 @@
 import os
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -15,6 +16,9 @@ class Settings(BaseSettings):
     supabase_url: str = ""
     supabase_service_role_key: SecretStr = SecretStr("")
     recording_bucket: str = "recordings"
+    recording_storage: Literal["supabase", "local"] = "supabase"
+    local_recordings_dir: Path = Path(__file__).resolve().parents[1] / "local-recordings"
+    local_storage_base_url: str = "http://localhost:8000"
     playback_url_seconds: int = Field(default=300, ge=30, le=600)
     groq_api_key: SecretStr = SecretStr("")
     groq_transcription_model: str = "whisper-large-v3-turbo"

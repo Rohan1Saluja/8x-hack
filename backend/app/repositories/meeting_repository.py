@@ -33,3 +33,17 @@ def has_running_job(conn, meeting_id):
 
 def delete_owned(conn, meeting_id, owner):
     return conn.execute("delete from app.meetings where id=%s and owner_id=%s", (meeting_id, owner))
+
+
+def find_for_local_import(conn, meeting_id):
+    return conn.execute(
+        "select * from app.meetings where id=%s and deleted_at is null for update", (meeting_id,)
+    ).fetchone()
+
+
+def attach_local_recording(conn, meeting_id, key, size, duration):
+    conn.execute(
+        "update app.meetings set recording_key=%s, recording_bytes=%s, duration_seconds=%s, "
+        "capture_state='stopped', failure_code=null where id=%s",
+        (key, size, duration, meeting_id),
+    )

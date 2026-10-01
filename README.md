@@ -22,7 +22,19 @@ docker compose exec db psql -U eightx -d eightx -c "select table_name from infor
 
 Expect eight tables. Run `pnpm dev` to start the frontend on :3000 and backend on :8000. `docker compose down` stops the database while retaining its named volume. Initialization scripts only run for a new, empty volume; later migrations must be applied explicitly. If startup fails, inspect `docker compose logs db` before proceeding. Do not delete the volume to fix an error unless its local data is disposable.
 
-Recordings still use hosted Supabase Storage: keep `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` configured. Run `supabase/setup/recordings_bucket.sql` in that project's SQL Editor to provision the private bucket. It is safe to rerun this bucket setup; it does not delete recordings. This setup does not implement Vercel Blob or local filesystem storage.
+For fully local development, set `RECORDING_STORAGE=local` in your backend local environment. The backend creates `backend/local-recordings/` automatically at startup; no Supabase credentials or bucket SQL are needed for this mode. The folder is ignored by Git and excluded from Vercel uploads. It persists across backend restarts and `docker compose down` because it lives on your machine, outside the database container. Retain it alongside the Docker database volume: the database stores references to these files.
+
+Local playback uses expiring signed links, issued only after the meeting ownership check, and supports byte ranges for seeking. There is no public static directory. Run a single local backend worker; restarting it invalidates old links, so refresh playback afterward. Local storage refuses to run unless `APP_ENV=development` and `VERCEL` is unset. If you change the backend port, set `LOCAL_STORAGE_BASE_URL` to its loopback HTTP origin (default `http://localhost:8000`). `LOCAL_RECORDINGS_DIR` can optionally specify a different absolute directory outside the repo; otherwise use the default so recording files remain excluded from Git and deployment uploads.
+
+To test with an existing recording before live capture is implemented, create a meeting in the app, copy its UUID from the meeting URL, and run this development-only operator command from `backend`:
+
+```sh
+uv run python -m app.admin import-local-recording --meeting-id MEETING_UUID --file "/absolute/path/to/sample.wav"
+```
+
+Use a complete PCM WAV file up to 3 minutes and 24 MB. The command copies it into local storage, calculates its duration, and attaches it to an empty meeting in the configured database; it never replaces an existing recording. This is a trusted local operator tool, not an HTTP upload endpoint or a meeting capture feature. Refresh the meeting to play it. Deleting the meeting removes the stored copy, not the original file. AI transcription sends the local file to Groq as a direct upload (a localhost URL cannot be fetched by Groq); it still requires your configured key and operator-approved free budget. No AI request occurs during import.
+
+Hosted recording storage remains available with `RECORDING_STORAGE=supabase` (the default), `SUPABASE_URL`, and `SUPABASE_SERVICE_ROLE_KEY`. Only this mode needs `supabase/setup/recordings_bucket.sql` run in the hosted project's SQL Editor. The bucket setup is safe to rerun and does not delete recordings. Choose the storage mode before creating recordings; existing recording references are not migrated when the setting changes. Vercel Blob is not implemented.
 
 For a fresh hosted Supabase application database, apply the files in `supabase/migrations` in filename order, then `supabase/setup/recordings_bucket.sql`. Previously initialized projects need no schema changes: bucket provisioning was extracted from the first migration without changing the application tables. Do not rerun already-applied app migrations.
 
@@ -54,8 +66,9 @@ All configuration below is server-side. There are no `NEXT_PUBLIC_` variables.
 | `APP_BASE_URL`              | Frontend            | Application origin, locally `http://localhost:3000`, without trailing slash.                                                 |
 | `BACKEND_URL`               | Frontend            | Backend origin, locally `http://localhost:8000`.                                                                             |
 | `DATABASE_URL`              | Backend             | Local: Docker PostgreSQL on port 5433 (see above). Production: Supabase transaction pooler on port 6543 with `sslmode=require`. |
-| `SUPABASE_URL`              | Backend             | Project URL from Supabase project settings.                                                                                  |
-| `SUPABASE_SERVICE_ROLE_KEY` | Backend             | Supabase legacy service-role key for server-only private Storage operations; never use the anon key here.                    |
+| `RECORDING_STORAGE`         | Backend             | Set `local` for local filesystem recordings; defaults to `supabase` for hosted recordings. |
+| `SUPABASE_URL`              | Backend, Supabase storage only | Project URL from Supabase project settings. |
+| `SUPABASE_SERVICE_ROLE_KEY` | Backend, Supabase storage only | Supabase legacy service-role key for private Storage operations; never use the anon key here. |
 | `APP_ENV`                   | Backend             | `development` locally; `production` for the production project.                                                              |
 | `RECORDING_BUCKET`          | Backend, optional   | Defaults to `recordings`, created private by `supabase/setup/recordings_bucket.sql`. Keep the default unless you also update that setup. |
 | `PLAYBACK_URL_SECONDS`      | Backend, optional   | Signed playback URL lifetime; default 300, maximum 600 seconds.                                                              |
