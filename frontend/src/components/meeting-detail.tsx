@@ -1,5 +1,7 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
+
 import {
   useCallback,
   useEffect,
@@ -122,11 +124,12 @@ export function MeetingDetail({
   }
   function sources(ids: string[]) {
     return (
-      <span className="sources">
+      <span className="inline-flex flex-wrap gap-[5px]">
         {ids.map((sourceId) => {
           const segment = evidence?.segments.find((s) => s.id === sourceId);
           return segment ? (
             <button
+              className="inline-flex cursor-pointer touch-manipulation items-center justify-center rounded border-0 bg-[#eeeafa] px-[7px] py-[3px] text-[10px] font-semibold text-purple focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[#b3aaff] enabled:hover:brightness-94 disabled:cursor-not-allowed disabled:opacity-48"
               type="button"
               key={sourceId}
               onClick={() => seek(sourceId)}
@@ -140,8 +143,8 @@ export function MeetingDetail({
     );
   }
   const fact = (item: Evidence, key: number | string) => (
-    <li key={key}>
-      <p>{item.text}</p>
+    <li className="pb-3" key={key}>
+      <p className="mb-[3px] text-[13px]">{item.text}</p>
       {sources(item.source_segment_ids)}
     </li>
   );
@@ -205,57 +208,79 @@ export function MeetingDetail({
   }
   if (deleted)
     return (
-      <div className="empty">
-        <h3>Meeting deleted</h3>
-        <p>Select another meeting from the library.</p>
+      <div className="px-7 py-[58px] text-center text-muted">
+        <h3 className="mb-2 text-base font-semibold text-ink">
+          Meeting deleted
+        </h3>
+        <p className="m-auto max-w-[320px] text-xs">
+          Select another meeting from the library.
+        </p>
       </div>
     );
   return (
-    <div className="detail-content">
-      <p className="fine">{meeting.meeting_url}</p>
-      <div className="stage-list">
+    <div className="p-[22px]">
+      <p className="mb-3 text-xs [overflow-wrap:anywhere] text-muted">
+        {meeting.meeting_url}
+      </p>
+      <div className="my-5 flex flex-wrap gap-3.5 text-[10px] text-muted">
         <span>
-          Capture <strong>{meeting.capture_state.replaceAll("_", " ")}</strong>
+          Capture{" "}
+          <strong className="block text-xs font-semibold text-ink">
+            {meeting.capture_state.replaceAll("_", " ")}
+          </strong>
         </span>
         <span>
-          Transcript <strong>{meeting.transcription_state}</strong>
+          Transcript{" "}
+          <strong className="block text-xs font-semibold text-ink">
+            {meeting.transcription_state}
+          </strong>
         </span>
         <span>
-          Summary <strong>{meeting.summary_state}</strong>
+          Summary{" "}
+          <strong className="block text-xs font-semibold text-ink">
+            {meeting.summary_state}
+          </strong>
         </span>
       </div>
-      <div className="toolbar">
-        <button disabled>Send notetaker</button>
-        <button className="secondary" disabled>
+      <div className="my-[15px] flex flex-wrap gap-2">
+        <Button size="compact" disabled>
+          Send notetaker
+        </Button>
+        <Button variant="secondary" size="compact" disabled>
           Stop bot
-        </button>
-        <button
-          className="secondary"
+        </Button>
+        <Button
+          variant="secondary"
+          size="compact"
           disabled={!!busy}
           onClick={() => void refresh().catch((e) => setError(e.message))}
         >
           Refresh details
-        </button>
+        </Button>
       </div>
-      <p className="fine">
+      <p className="mb-3 text-xs [overflow-wrap:anywhere] text-muted">
         Capture is pending free account verification. Before recording, notify
         all participants and admit the clearly named notetaker.
       </p>
       {error && (
-        <p className="error" role="alert">
+        <p
+          className="mb-3 rounded-[7px] border border-[#f3c7c7] bg-[#fff1f1] p-3 text-[#8f2525]"
+          role="alert"
+        >
           {error}
         </p>
       )}
       {meeting.failure_code && (
-        <p className="error">
+        <p className="mb-3 rounded-[7px] border border-[#f3c7c7] bg-[#fff1f1] p-3 text-[#8f2525]">
           Last processing failure: {meeting.failure_code.replaceAll("_", " ")}.
           Completed stages are saved.
         </p>
       )}
       {meeting.recording_ready && (
-        <div className="recording">
+        <div>
           {playback ? (
             <video
+              className="block max-h-[300px] w-full rounded-lg bg-[#191822]"
               ref={player}
               src={playback}
               controls
@@ -273,26 +298,24 @@ export function MeetingDetail({
               }
             />
           ) : (
-            <button
-              className="secondary"
+            <Button
+              variant="secondary"
               onClick={() => void authorizePlayback()}
             >
               Load private recording
-            </button>
+            </Button>
           )}
           {playback && (
-            <button
-              className="text-button"
-              onClick={() => void authorizePlayback()}
-            >
+            <Button variant="text" onClick={() => void authorizePlayback()}>
               Refresh playback link
-            </button>
+            </Button>
           )}
         </div>
       )}
-      <div className="toolbar">
-        <button
-          className="secondary"
+      <div className="my-[15px] flex flex-wrap gap-2">
+        <Button
+          variant="secondary"
+          size="compact"
           disabled={
             !!busy ||
             !meeting.recording_ready ||
@@ -302,9 +325,10 @@ export function MeetingDetail({
           onClick={() => void action("transcribe")}
         >
           {busy === "transcribe" ? "Transcribing…" : "Generate transcript"}
-        </button>
-        <button
-          className="secondary"
+        </Button>
+        <Button
+          variant="secondary"
+          size="compact"
           disabled={
             !!busy ||
             meeting.transcription_state !== "ready" ||
@@ -314,33 +338,38 @@ export function MeetingDetail({
           onClick={() => void action("summarize")}
         >
           {busy === "summarize" ? "Summarizing…" : "Generate summary"}
-        </button>
+        </Button>
         {evidence?.jobs.some((j) => j.interrupted) && (
-          <button
-            className="secondary"
+          <Button
+            variant="secondary"
+            size="compact"
             disabled={!!busy}
             onClick={() => void action("recover")}
           >
             Recover interrupted work
-          </button>
+          </Button>
         )}
       </div>
       {evidence?.jobs.length ? (
-        <p className="fine">
+        <p className="mb-3 text-xs [overflow-wrap:anywhere] text-muted">
           {evidence.jobs
             .filter((j) => j.stage !== "question")
             .map((j) => `${j.stage}: ${j.attempts}/3 attempts`)
             .join(" · ")}
         </p>
       ) : null}
-      <div className="tabs" role="tablist" aria-label="Meeting content">
+      <div
+        className="my-[25px] flex gap-5 border-b border-line"
+        role="tablist"
+        aria-label="Meeting content"
+      >
         {(["summary", "transcript", "questions"] as const).map((t) => (
           <button
             role="tab"
             aria-selected={tab === t}
             aria-controls={`panel-${t}`}
             key={t}
-            className={tab === t ? "active" : ""}
+            className={`inline-flex cursor-pointer touch-manipulation items-center justify-center rounded-none border-x-0 border-t-0 border-b-2 bg-transparent px-0 py-2.5 text-xs font-semibold capitalize focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[#b3aaff] enabled:hover:brightness-94 disabled:cursor-not-allowed disabled:opacity-48 ${tab === t ? "border-purple text-purple" : "border-transparent text-muted"}`}
             onClick={() => setTab(t)}
           >
             {t === "questions" ? "Ask meeting" : t}
@@ -348,56 +377,65 @@ export function MeetingDetail({
         ))}
       </div>
       {!evidence ? (
-        <p role="status">Loading meeting evidence…</p>
+        <p className="mb-3" role="status">
+          Loading meeting evidence…
+        </p>
       ) : (
         <div role="tabpanel" id={`panel-${tab}`}>
           {tab === "summary" &&
             (evidence.summary ? (
               <>
-                <h3>Overview</h3>
-                <ul className="facts">
+                <h3 className="mb-2 text-base font-semibold">Overview</h3>
+                <ul className="m-0 mb-6 list-none p-0">
                   {fact(evidence.summary.overview, "overview")}
                 </ul>
-                <h3>Topics</h3>
-                <ul className="facts">{evidence.summary.topics.map(fact)}</ul>
-                <h3>Decisions</h3>
+                <h3 className="mb-2 text-base font-semibold">Topics</h3>
+                <ul className="m-0 mb-6 list-none p-0">
+                  {evidence.summary.topics.map(fact)}
+                </ul>
+                <h3 className="mb-2 text-base font-semibold">Decisions</h3>
                 {evidence.summary.decisions.length ? (
-                  <ul className="facts">
+                  <ul className="m-0 mb-6 list-none p-0">
                     {evidence.summary.decisions.map(fact)}
                   </ul>
                 ) : (
-                  <p className="fine">No explicit decisions found.</p>
+                  <p className="mb-3 text-xs [overflow-wrap:anywhere] text-muted">
+                    No explicit decisions found.
+                  </p>
                 )}
-                <h3>Action items</h3>
+                <h3 className="mb-2 text-base font-semibold">Action items</h3>
                 {evidence.actions.length ? (
                   evidence.actions.map((item) => (
                     <form
-                      className="action-form"
+                      className="mb-3 rounded-lg border border-line p-[15px]"
                       key={item.id}
                       onSubmit={(e) => void saveAction(item, e)}
                     >
-                      <label>
+                      <label className="block text-[11px] text-muted">
                         Task
                         <input
+                          className="w-full touch-manipulation rounded-[7px] border border-[#d9dbe5] bg-white p-[7px] text-xs text-ink placeholder:text-[#9295a3] focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[#b3aaff]"
                           name="text"
                           required
                           maxLength={1000}
                           defaultValue={item.text}
                         />
                       </label>
-                      <div className="action-meta">
-                        <label>
+                      <div className="my-2.5 grid grid-cols-2 gap-2.5">
+                        <label className="block text-[11px] text-muted">
                           Owner
                           <input
+                            className="w-full touch-manipulation rounded-[7px] border border-[#d9dbe5] bg-white p-[7px] text-xs text-ink placeholder:text-[#9295a3] focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[#b3aaff]"
                             name="owner"
                             maxLength={160}
                             defaultValue={item.owner || ""}
                             placeholder="Not stated"
                           />
                         </label>
-                        <label>
+                        <label className="block text-[11px] text-muted">
                           Deadline as stated
                           <input
+                            className="w-full touch-manipulation rounded-[7px] border border-[#d9dbe5] bg-white p-[7px] text-xs text-ink placeholder:text-[#9295a3] focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[#b3aaff]"
                             name="due_date"
                             maxLength={160}
                             defaultValue={item.due_date || ""}
@@ -405,8 +443,9 @@ export function MeetingDetail({
                           />
                         </label>
                       </div>
-                      <label className="checkbox">
+                      <label className="mb-2 flex items-center gap-2 text-[11px] text-muted">
                         <input
+                          className="w-auto touch-manipulation rounded-[7px] border border-[#d9dbe5] bg-white p-[7px] text-xs text-ink accent-purple placeholder:text-[#9295a3] focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[#b3aaff]"
                           type="checkbox"
                           name="completed"
                           defaultChecked={item.completed}
@@ -414,31 +453,37 @@ export function MeetingDetail({
                         Completed
                       </label>
                       {sources(item.source_segment_ids)}
-                      <button
-                        className="secondary"
-                        disabled={!!busy}
-                        type="submit"
-                      >
-                        Save action
-                      </button>
+                      <div className="mt-2.5">
+                        <Button
+                          variant="secondary"
+                          size="small"
+                          disabled={!!busy}
+                          type="submit"
+                        >
+                          Save action
+                        </Button>
+                      </div>
                     </form>
                   ))
                 ) : (
-                  <p className="fine">No explicit action items found.</p>
+                  <p className="mb-3 text-xs [overflow-wrap:anywhere] text-muted">
+                    No explicit action items found.
+                  </p>
                 )}
               </>
             ) : (
-              <p className="empty">
+              <p className="mb-3 px-7 py-[58px] text-center text-muted">
                 Your summary will appear after a recording is transcribed and
                 summarized.
               </p>
             ))}
           {tab === "transcript" &&
             (evidence.segments.length ? (
-              <ol className="transcript">
+              <ol className="m-0 list-none p-0">
                 {evidence.segments.map((s) => (
-                  <li key={s.id}>
+                  <li className="mb-4 flex items-start gap-3" key={s.id}>
                     <button
+                      className="mt-[3px] inline-flex shrink-0 cursor-pointer touch-manipulation items-center justify-center rounded border-0 bg-[#eeeafa] px-[7px] py-[3px] text-[10px] font-semibold text-purple focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[#b3aaff] enabled:hover:brightness-94 disabled:cursor-not-allowed disabled:opacity-48"
                       onClick={() => seek(s.id)}
                       aria-label={`Play transcript at ${time(s.start_seconds)}`}
                     >
@@ -446,34 +491,40 @@ export function MeetingDetail({
                     </button>
                     <div>
                       {s.speaker && <strong>{s.speaker}</strong>}
-                      <p>{s.text}</p>
+                      <p className="m-0 text-xs">{s.text}</p>
                     </div>
                   </li>
                 ))}
               </ol>
             ) : (
-              <p className="empty">
+              <p className="mb-3 px-7 py-[58px] text-center text-muted">
                 No transcript yet. Speaker identities will remain blank unless
                 verified.
               </p>
             ))}
           {tab === "questions" && (
             <>
-              <p className="fine">
+              <p className="mb-3 text-xs [overflow-wrap:anywhere] text-muted">
                 Answers use this meeting only. Sources open the original
                 recording moment.
               </p>
               {evidence.questions.map((q) => (
-                <article className="answer" key={q.id}>
-                  <h3>{q.question}</h3>
-                  <p>{q.answer.answer}</p>
+                <article
+                  className="mb-5 border-b border-line py-[15px]"
+                  key={q.id}
+                >
+                  <h3 className="mb-2 text-[13px] font-semibold">
+                    {q.question}
+                  </h3>
+                  <p className="mb-3 text-xs">{q.answer.answer}</p>
                   {sources(q.answer.source_segment_ids)}
                 </article>
               ))}
-              <form onSubmit={(e) => void ask(e)} className="question-form">
-                <label>
+              <form onSubmit={(e) => void ask(e)}>
+                <label className="block text-[11px] text-muted">
                   Ask about this meeting
                   <textarea
+                    className="mt-2 mb-3 block min-h-[90px] w-full touch-manipulation resize-y rounded-[7px] border border-[#d9dbe5] bg-white px-3 py-[11px] text-ink placeholder:text-[#9295a3] focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[#b3aaff]"
                     name="question"
                     required
                     maxLength={2000}
@@ -483,43 +534,48 @@ export function MeetingDetail({
                     placeholder="What did we decide, and who is doing what?"
                   />
                 </label>
-                <button
+                <Button
                   disabled={
                     !!busy || running || meeting.transcription_state !== "ready"
                   }
                 >
                   {busy === "question" ? "Finding evidence…" : "Ask meeting"}
-                </button>
+                </Button>
               </form>
             </>
           )}
         </div>
       )}
-      <div className="delete-area">
+      <div className="mt-[30px] border-t border-line pt-[15px] text-xs">
         {confirmDelete ? (
           <>
-            <p>Delete this meeting, its recording, transcript, and notes?</p>
-            <button
-              className="danger"
+            <p className="mb-3">
+              Delete this meeting, its recording, transcript, and notes?
+            </p>
+            <Button
+              className="mr-2 text-[11px]"
+              variant="danger"
               disabled={!!busy}
               onClick={() => void remove()}
             >
               Delete meeting
-            </button>
-            <button
-              className="secondary"
+            </Button>
+            <Button
+              className="mr-2 text-[11px]"
+              variant="secondary"
               onClick={() => setConfirmDelete(false)}
             >
               Cancel
-            </button>
+            </Button>
           </>
         ) : (
-          <button
-            className="text-button"
+          <Button
+            className="mr-2 text-[11px]"
+            variant="text"
             onClick={() => setConfirmDelete(true)}
           >
             Delete meeting…
-          </button>
+          </Button>
         )}
       </div>
     </div>
