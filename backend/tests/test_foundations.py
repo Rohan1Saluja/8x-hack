@@ -5,7 +5,7 @@ import jwt
 import psycopg
 import pytest
 
-from app import storage
+from app.integrations import storage
 
 
 def create(client, token):

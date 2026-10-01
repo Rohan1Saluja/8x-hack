@@ -4,13 +4,20 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
-from app.config import settings
-from app.evidence import router as evidence_router
-from app.meetings import router
+from app.errors import AppError
+from app.routers.evidence import router as evidence_router
+from app.routers.health import router as health_router
+from app.routers.meetings import router
 
 app = FastAPI(title="8x meeting assistant", version="0.1.0")
 app.include_router(router)
 app.include_router(evidence_router)
+app.include_router(health_router)
+
+
+@app.exception_handler(AppError)
+async def application_error(request, exc):
+    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
 
 
 @app.middleware("http")
@@ -62,18 +69,3 @@ async def provider_error(request, exc):
             }
         },
     )
-
-
-@app.get("/health")
-def health():
-    config = settings()
-    return {
-        "status": "ok",
-        "configuration": {
-            "auth": bool(config.auth0_domain and config.auth0_audience),
-            "database": bool(config.database_url.get_secret_value()),
-            "storage": bool(
-                config.supabase_url and config.supabase_service_role_key.get_secret_value()
-            ),
-        },
-    }

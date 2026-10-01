@@ -6,11 +6,14 @@ import groq
 import httpx
 import psycopg
 import pytest
-from fastapi import HTTPException
 
-from app import ai, db, jobs, storage
+from app import db
 from app.config import settings
+from app.errors import AppError
 from app.evidence_schemas import Answer, Segment, Summary, validate_evidence
+from app.integrations import ai, storage
+from app.services import job_service as jobs
+from app.services import user_service
 
 
 @pytest.fixture
@@ -221,9 +224,9 @@ def test_provider_rate_limit_is_saved_and_reservation_retained(
 
 
 def test_lease_recovery_fences_old_worker(client, token, recording, mock_provider, postgres):
-    owner = db.user_id("auth0|alice")
+    owner = user_service.resolve("auth0|alice")
     first = jobs.claim(UUID(recording), owner, "transcribe", "transcribe", "fixture", audio=180)
-    with pytest.raises(HTTPException) as error:
+    with pytest.raises(AppError) as error:
         jobs.claim(UUID(recording), owner, "transcribe", "transcribe", "fixture", audio=180)
     assert error.value.detail["code"] == "processing_active"
     with psycopg.connect(postgres) as conn:
@@ -232,9 +235,43 @@ def test_lease_recovery_fences_old_worker(client, token, recording, mock_provide
     assert client.post(f"/meetings/{recording}/recover", headers=token()).json()["recovered"] == 1
     second = jobs.claim(UUID(recording), owner, "transcribe", "transcribe", "fixture", audio=180)
     assert second != first
-    with pytest.raises(HTTPException) as error, db.connection() as conn:
+    with pytest.raises(AppError) as error, db.connection() as conn:
         jobs.finish(conn, UUID(recording), "transcribe", first)
     assert error.value.detail["code"] == "lease_lost"
+
+
+def test_evidence_write_failure_rolls_back_completion(
+    client, token, recording, mock_provider, monkeypatch
+):
+    from app.repositories import evidence_repository
+
+    root = f"/meetings/{recording}"
+    assert client.post(root + "/transcribe", headers=token()).status_code == 200
+
+    def reject_action(*args, **kwargs):
+        raise RuntimeError("Fixture persistence failure after summary insert")
+
+    monkeypatch.setattr(evidence_repository, "insert_action", reject_action)
+    response = client.post(root + "/summarize", headers=token())
+    assert response.status_code == 502
+    saved = client.get(root + "/evidence", headers=token()).json()
+    assert saved["summary"] is None
+    assert saved["actions"] == []
+    assert len(saved["segments"]) == 2
+    assert client.get(root, headers=token()).json()["summary_state"] == "failed"
+    assert next(job for job in saved["jobs"] if job["stage"] == "summarize")["status"] == "failed"
+
+
+def test_failed_storage_cleanup_keeps_meeting(client, token, recording, monkeypatch):
+    def reject_delete(key):
+        raise AppError(502, "storage_unavailable", "Fixture storage failure", True)
+
+    monkeypatch.setattr(storage, "delete_recording", reject_delete)
+    root = f"/meetings/{recording}"
+    response = client.delete(root, headers=token())
+    assert response.status_code == 502
+    assert response.json()["detail"]["code"] == "storage_unavailable"
+    assert client.get(root, headers=token()).status_code == 200
 
 
 def test_evidence_validation():
