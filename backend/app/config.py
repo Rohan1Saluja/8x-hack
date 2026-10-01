@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     supabase_service_role_key: SecretStr = SecretStr("")
     recording_bucket: str = "recordings"
     playback_url_seconds: int = Field(default=300, ge=30, le=600)
+    groq_api_key: SecretStr = SecretStr("")
+    groq_transcription_model: str = "whisper-large-v3-turbo"
+    groq_text_model: str = "openai/gpt-oss-20b"
 
     @property
     def issuer(self) -> str:

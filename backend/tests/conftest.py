@@ -25,7 +25,9 @@ def postgres(tmp_path_factory):
     with psycopg.connect(uri, autocommit=True) as conn:
         conn.execute("create role anon; create role authenticated; create schema storage")
         # Minimal Supabase bucket metadata fixture; actual Storage HTTP API remains unverified.
-        conn.execute("create table storage.buckets(id text primary key, name text, public boolean, file_size_limit bigint, allowed_mime_types text[])")
+        conn.execute(
+            "create table storage.buckets(id text primary key, name text, public boolean, file_size_limit bigint, allowed_mime_types text[])"
+        )
         for migration in sorted((Path(__file__).parents[2] / "supabase/migrations").glob("*.sql")):
             conn.execute(migration.read_text())
     yield uri
@@ -42,6 +44,7 @@ def client(postgres, monkeypatch):
     settings.cache_clear()
     with psycopg.connect(postgres, autocommit=True) as conn:
         conn.execute("truncate app.users cascade")
+        conn.execute("truncate app.provider_budget")
     with TestClient(app) as test_client:
         yield test_client
     settings.cache_clear()
@@ -50,11 +53,20 @@ def client(postgres, monkeypatch):
 @pytest.fixture
 def token(monkeypatch):
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-    fake_jwks = SimpleNamespace(get_signing_key_from_jwt=lambda _: SimpleNamespace(key=key.public_key()))
+    fake_jwks = SimpleNamespace(
+        get_signing_key_from_jwt=lambda _: SimpleNamespace(key=key.public_key())
+    )
     monkeypatch.setattr(auth, "jwks_client", lambda _: fake_jwks)
 
     def create(sub="auth0|alice", **overrides):
-        claims = {"sub": sub, "iss": "https://unit-test.auth0.com/", "aud": "https://eightx.test/api",
-                  "iat": int(time.time()), "exp": int(time.time()) + 3600, **overrides}
+        claims = {
+            "sub": sub,
+            "iss": "https://unit-test.auth0.com/",
+            "aud": "https://eightx.test/api",
+            "iat": int(time.time()),
+            "exp": int(time.time()) + 3600,
+            **overrides,
+        }
         return {"Authorization": "Bearer " + jwt.encode(claims, key, algorithm="RS256")}
+
     return create

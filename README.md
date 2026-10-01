@@ -60,3 +60,29 @@ Real login/logout, Supabase account connectivity and signed playback require you
 ## Review workflow
 
 Feature changes are reviewed through pull requests. `feat/auth-persistence` targets the owner-initialized `main` branch. `feat/evidence-processing` is stacked on `feat/auth-persistence`; retarget it to `main` after the foundation PR merges. PR creation does not authorize merging, deployment, starting the timer, or submission.
+
+## AI configuration and verification
+
+Additional backend-only variables:
+
+| Variable                   | Purpose and source                                                                                               |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `GROQ_API_KEY`             | Key from the actual Groq **Free** organization/project. Confirm its plan first; do not attach a payment method.  |
+| `GROQ_TRANSCRIPTION_MODEL` | Optional; defaults to `whisper-large-v3-turbo`. Use only a model verified in this account.                       |
+| `GROQ_TEXT_MODEL`          | Optional; defaults to `openai/gpt-oss-20b`. Must support strict JSON Schema; no paid/model fallback is selected. |
+
+Keep these values in `backend/.env.local` locally or the backend Vercel project's environment settings. Please configure the required values yourself; do not paste secrets into chat. For production use HTTPS origins and the same Auth0 audience in both projects.
+
+From `backend`, `uv run python -m app.admin verify-models` performs a model-list read with your configured key. It does not prove billing eligibility or run inference. After checking the actual Free plan and remaining quotas in the Groq dashboard, the operator can run `uv run python -m app.admin approve-groq-budget --help` to record a conservative budget. Required arguments are `--audio-seconds`, `--text-requests`, `--text-tokens`, `--hours` (1–24), `--note` (verification facts, no credentials), and `--confirm-free-no-payment`. Use remaining allowances from the account, leave headroom, and avoid using the same allowance in other apps. No default grant is seeded. There is no public budget-approval endpoint.
+
+The database reservation is an application cap, not a live Groq balance API. Reservations are retained even on errors. A human rechecks dashboard quotas before granting more capacity; budgets never replenish automatically. Provider 429 responses enforce actual account rate limits. The preparation UI shows configuration/quota failures and uses one explicit request for each transcription, summary or question. Three attempts per operation, 20 distinct questions per meeting, one concurrent provider operation, and three-minute/24-MB recordings are the fixed preparation limits. The capture adapter remains blocked and cannot create recordings yet.
+
+## Processing and evidence
+
+Apply both migrations. Generate a transcript before a summary; either can be resumed independently. Calls persist job status before inference and results in a fenced transaction. After an interrupted request, refresh the meeting; after its five-minute lease expires, use **Recover interrupted work**, then retry. Each retry uses another conservative reservation. Do not grant yourself new quota to work around a provider rejection without verifying the real Free allowance.
+
+Summary actions are editable independently; their original source links remain attached. Q&A only uses stored segments from the current meeting. Click a transcript timestamp or source to seek the stored recording. An expired playback URL can be refreshed after authorization. These player interactions still require real-media browser verification.
+
+`node scripts/smoke_frontend.mjs` tests production HTTP behavior after a build. It uses explicit dummy configuration in child-process memory, creates no environment files, and makes no real Auth0 calls. Native backend tests normally use pgserver. In containers unable to launch native PostgreSQL, `TEST_DATABASE_URL` can point the test process to a **fresh disposable** PostgreSQL/PGlite instance; tests create schemas and truncate fixture data, so never point it at a shared or real project. PGlite test results do not prove native concurrent-transaction behavior.
+
+Read [the checkpoint report](docs/integration-checkpoint.md) for implemented versus tested versus blocked functionality, exact account actions, hosting limits, and proposed Sprint 1. [Feature PR descriptions](docs/pull-requests.md) describe the review scope and validation for each branch.
