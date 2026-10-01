@@ -3,6 +3,19 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import type { Meeting } from "@/lib/types";
+import { MeetingDetail } from "@/components/meeting-detail";
+
+type IntegrationStatus = {
+  ai: {
+    configured: boolean;
+    budget: null | {
+      verified: boolean;
+      audio_seconds_remaining: number;
+      text_requests_remaining: number;
+      text_tokens_remaining: number;
+    };
+  };
+};
 
 export function Workspace({ name }: { name: string }) {
   const [meetings, setMeetings] = useState<Meeting[]>([]);
@@ -10,11 +23,23 @@ export function Workspace({ name }: { name: string }) {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [integrations, setIntegrations] = useState<IntegrationStatus | null>(
+    null,
+  );
   const requestId = useRef<string | null>(null);
   const refresh = useCallback(async () => {
     setError("");
     try {
-      setMeetings(await api<Meeting[]>("meetings"));
+      const [rows, status] = await Promise.all([
+        api<Meeting[]>("meetings"),
+        api<IntegrationStatus>("integrations"),
+        api("me"),
+      ]);
+      setMeetings(rows);
+      setIntegrations(status);
+      setSelected((current) =>
+        current ? rows.find((m) => m.id === current.id) || null : null,
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to load meetings.");
     } finally {
@@ -82,6 +107,15 @@ export function Workspace({ name }: { name: string }) {
             before sending a notetaker. You can save meeting links now.
           </p>
         </div>
+        {integrations && (
+          <p className="fine" role="status">
+            {!integrations.ai.configured
+              ? "AI setup needed: configure the Groq Free account key."
+              : !integrations.ai.budget?.verified
+                ? "AI requests are blocked until the current Free account limits are verified."
+                : `Approved AI budget remaining: ${integrations.ai.budget.audio_seconds_remaining} audio seconds · ${integrations.ai.budget.text_requests_remaining} text requests · ${integrations.ai.budget.text_tokens_remaining} reserved-token capacity.`}
+          </p>
+        )}
         {error && (
           <p className="error" role="alert">
             {error}
@@ -163,17 +197,11 @@ export function Workspace({ name }: { name: string }) {
               <h2>{selected?.title || "Meeting details"}</h2>
             </div>
             {selected ? (
-              <div className="detail-content">
-                <p className="fine">{selected.meeting_url}</p>
-                <p>Capture: {selected.capture_state.replaceAll("_", " ")}</p>
-                <p>Transcript: {selected.transcription_state}</p>
-                <p>Summary: {selected.summary_state}</p>
-                <button disabled>Send notetaker</button>
-                <p className="fine">
-                  Free bot access must be verified first. The notetaker will
-                  identify itself and require host admission.
-                </p>
-              </div>
+              <MeetingDetail
+                key={selected.id}
+                initial={selected}
+                onChanged={refresh}
+              />
             ) : (
               <div className="empty">
                 <h3>A little context goes a long way</h3>

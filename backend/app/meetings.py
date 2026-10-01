@@ -24,7 +24,8 @@ def list_meetings(owner=Depends(current_user)):
     with db.connection() as conn:
         rows = conn.execute(
             "select * from app.meetings where owner_id=%s and deleted_at is null "
-            "order by created_at desc limit 100", (owner,),
+            "order by created_at desc limit 100",
+            (owner,),
         ).fetchall()
     return [meeting_out(row) for row in rows]
 
@@ -43,7 +44,11 @@ def create_meeting(body: MeetingCreate, owner=Depends(current_user)):
                 (owner, body.request_id),
             ).fetchone()
             if row is None or row["title"] != body.title or row["meeting_url"] != body.meeting_url:
-                fail(409, "request_conflict", "This request ID was already used. Create a new meeting.")
+                fail(
+                    409,
+                    "request_conflict",
+                    "This request ID was already used. Create a new meeting.",
+                )
     return meeting_out(row)
 
 
@@ -70,7 +75,20 @@ def delete_meeting(meeting_id: UUID, owner=Depends(current_user)):
         if meeting["capture_state"] in ("joining", "awaiting_admission", "recording"):
             fail(409, "capture_active", "Stop the notetaker before deleting this meeting.")
         if meeting["transcription_state"] == "running" or meeting["summary_state"] == "running":
-            fail(409, "processing_active", "Finish or recover processing before deleting this meeting.")
+            fail(
+                409,
+                "processing_active",
+                "Finish or recover processing before deleting this meeting.",
+            )
+        if conn.execute(
+            "select 1 from app.processing_jobs where meeting_id=%s and status='running' limit 1",
+            (meeting_id,),
+        ).fetchone():
+            fail(
+                409,
+                "processing_active",
+                "Finish or recover processing before deleting this meeting.",
+            )
         if meeting["recording_key"]:
             storage.delete_recording(meeting["recording_key"])
         conn.execute("delete from app.meetings where id=%s and owner_id=%s", (meeting_id, owner))

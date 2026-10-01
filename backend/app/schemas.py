@@ -31,7 +31,9 @@ class MeetingCreate(StrictModel):
         return value
 
 
-CaptureState = Literal["not_started", "joining", "awaiting_admission", "recording", "stopped", "failed"]
+CaptureState = Literal[
+    "not_started", "joining", "awaiting_admission", "recording", "stopped", "failed"
+]
 StageState = Literal["pending", "running", "ready", "failed"]
 
 
