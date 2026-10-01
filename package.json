@@ -1,0 +1,16 @@
+{
+  "name": "8x-hack",
+  "private": true,
+  "packageManager": "pnpm@11.25.0",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "dev": "pnpm --parallel --filter frontend --filter backend dev",
+    "build": "pnpm --filter frontend build",
+    "typecheck": "pnpm --filter frontend typecheck",
+    "check:backend": "pnpm --filter backend check",
+    "test:backend": "pnpm --filter backend test",
+    "check:secrets": "python scripts/check_secrets.py"
+  }
+}
