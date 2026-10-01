@@ -4,18 +4,18 @@ from uuid import uuid4
 
 from app import db
 from app.errors import fail
+from app.repositories import job_repository
+from app.services import meeting_service
 
-STAGE_COLUMN = {"transcribe": "transcription_state", "summarize": "summary_state"}
+PROCESSING_STAGES = ("transcribe", "summarize")
 
 
 def claim(meeting_id, owner, stage, job_key, input_text, *, audio=0, tokens=0):
     fingerprint = hashlib.sha256(input_text.encode()).hexdigest()
     lease = uuid4()
     with db.connection() as conn:
-        db.owned(conn, meeting_id, owner)
-        budget = conn.execute(
-            "select * from app.provider_budget where provider='groq' for update"
-        ).fetchone()
+        meeting_service.require_owned(conn, meeting_id, owner)
+        budget = job_repository.lock_budget(conn)
         now = datetime.now(timezone.utc)
         if not budget or budget["expires_at"] <= now:
             fail(
@@ -23,11 +23,8 @@ def claim(meeting_id, owner, stage, job_key, input_text, *, audio=0, tokens=0):
                 "free_plan_unverified",
                 "Verify the actual Groq Free account and approve a short-lived usage budget.",
             )
-        meeting = db.owned(conn, meeting_id, owner, lock=True)
-        job = conn.execute(
-            "select * from app.processing_jobs where meeting_id=%s and job_key=%s for update",
-            (meeting_id, job_key),
-        ).fetchone()
+        meeting = meeting_service.require_owned(conn, meeting_id, owner, lock=True)
+        job = job_repository.lock_job(conn, job_key=job_key, meeting_id=meeting_id)
         if job:
             if job["input_hash"] != fingerprint:
                 fail(
@@ -60,10 +57,7 @@ def claim(meeting_id, owner, stage, job_key, input_text, *, audio=0, tokens=0):
                 True,
             )
         if stage == "question" and job is None:
-            count = conn.execute(
-                "select count(*) as count from app.processing_jobs where meeting_id=%s and stage='question'",
-                (meeting_id,),
-            ).fetchone()["count"]
+            count = job_repository.count_questions(conn, meeting_id)["count"]
             if count >= 20:
                 fail(
                     429, "question_limit", "This preparation build allows 20 questions per meeting."
@@ -86,48 +80,35 @@ def claim(meeting_id, owner, stage, job_key, input_text, *, audio=0, tokens=0):
             fail(409, "recording_not_ready", "No persisted recording is available.")
         if stage in ("summarize", "question") and meeting["transcription_state"] != "ready":
             fail(409, "transcript_not_ready", "Generate a transcript first.")
-        conn.execute(
-            "update app.provider_budget set audio_reserved=audio_reserved+%s, requests_reserved=requests_reserved+%s, "
-            "tokens_reserved=tokens_reserved+%s,active_token=%s,active_until=now()+interval '5 minutes' where provider='groq'",
-            (audio, text_requests, tokens, lease),
+        job_repository.reserve_budget(
+            conn, audio=audio, lease=lease, text_requests=text_requests, tokens=tokens
         )
-        conn.execute(
-            "insert into app.processing_jobs(meeting_id,job_key,stage,status,attempts,input_hash,lease_token,lease_until) "
-            "values(%s,%s,%s,'running',1,%s,%s,now()+interval '5 minutes') "
-            "on conflict(meeting_id,job_key) do update set status='running',attempts=app.processing_jobs.attempts+1,"
-            "lease_token=excluded.lease_token,lease_until=excluded.lease_until,error_code=null,retry_after=null",
-            (meeting_id, job_key, stage, fingerprint, lease),
+        job_repository.start_job(
+            conn,
+            fingerprint=fingerprint,
+            job_key=job_key,
+            lease=lease,
+            meeting_id=meeting_id,
+            stage=stage,
         )
-        if stage in STAGE_COLUMN:
-            # Column comes exclusively from this constant mapping, never from a user value.
-            conn.execute(
-                f"update app.meetings set {STAGE_COLUMN[stage]}='running',failure_code=null where id=%s",
-                (meeting_id,),
-            )
+        if stage in PROCESSING_STAGES:
+            job_repository.mark_running(conn, meeting_id=meeting_id, stage=stage)
     return lease
 
 
 def finish(conn, meeting_id, job_key, lease, *, error=None):
     # Match claim's lock order to avoid deadlocks between recovery/completion and new work.
-    conn.execute("select provider from app.provider_budget where provider='groq' for update")
-    conn.execute("select id from app.meetings where id=%s for update", (meeting_id,))
-    row = conn.execute(
-        "update app.processing_jobs set status=%s,error_code=%s,retry_after=case when %s then now()+interval '60 seconds' else null end "
-        "where meeting_id=%s and job_key=%s and lease_token=%s and status='running' returning stage",
-        ("failed" if error else "ready", error, bool(error), meeting_id, job_key, lease),
-    ).fetchone()
+    job_repository.lock_budget_for_completion(conn)
+    job_repository.lock_meeting(conn, meeting_id)
+    row = job_repository.finish_job(
+        conn, error=error, job_key=job_key, lease=lease, meeting_id=meeting_id
+    )
     if not row:
         fail(409, "lease_lost", "Another attempt owns this operation. Reload the meeting.")
     stage = row["stage"]
-    if stage in STAGE_COLUMN:
-        conn.execute(
-            f"update app.meetings set {STAGE_COLUMN[stage]}=%s,failure_code=%s where id=%s",
-            ("failed" if error else "ready", error, meeting_id),
-        )
-    conn.execute(
-        "update app.provider_budget set active_token=null,active_until=null where provider='groq' and active_token=%s",
-        (lease,),
-    )
+    if stage in PROCESSING_STAGES:
+        job_repository.finish_stage(conn, error=error, meeting_id=meeting_id, stage=stage)
+    job_repository.release_budget(conn, lease)
 
 
 def fail_job(meeting_id, job_key, lease, code):
@@ -137,16 +118,9 @@ def fail_job(meeting_id, job_key, lease, code):
 
 def recover(meeting_id, owner):
     with db.connection() as conn:
-        db.owned(conn, meeting_id, owner, lock=True)
-        expired = conn.execute(
-            "update app.processing_jobs set status='failed',error_code='interrupted',retry_after=null "
-            "where meeting_id=%s and status='running' and lease_until<now() returning stage",
-            (meeting_id,),
-        ).fetchall()
+        meeting_service.require_owned(conn, meeting_id, owner, lock=True)
+        expired = job_repository.recover_expired(conn, meeting_id)
         for row in expired:
-            if row["stage"] in STAGE_COLUMN:
-                conn.execute(
-                    f"update app.meetings set {STAGE_COLUMN[row['stage']]}='failed',failure_code='interrupted' where id=%s",
-                    (meeting_id,),
-                )
+            if row["stage"] in PROCESSING_STAGES:
+                job_repository.mark_interrupted(conn, meeting_id=meeting_id, stage=row["stage"])
     return {"recovered": len(expired)}

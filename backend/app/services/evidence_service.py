@@ -1,23 +1,15 @@
 from uuid import UUID
 
 import groq
-from fastapi import APIRouter, Depends, HTTPException
-from psycopg.types.json import Jsonb
 
-from app import ai, db, jobs, storage
+from app import db
 from app.config import settings
-from app.errors import fail
+from app.errors import AppError, fail
 from app.evidence_schemas import ActionUpdate, QuestionCreate
-from app.meetings import current_user
-
-router = APIRouter()
-
-
-def segments_for(conn, meeting_id):
-    return conn.execute(
-        "select id,ordinal,text,start_seconds,end_seconds,speaker from app.transcript_segments where meeting_id=%s order by ordinal",
-        (meeting_id,),
-    ).fetchall()
+from app.integrations import ai, storage
+from app.repositories import evidence_repository
+from app.services import job_service as jobs
+from app.services import meeting_service
 
 
 def run_failure(meeting_id, job_key, lease, exc):
@@ -39,7 +31,7 @@ def run_failure(meeting_id, job_key, lease, exc):
             502,
             "AI output failed evidence validation. Saved earlier stages are preserved.",
         )
-    elif isinstance(exc, HTTPException):
+    elif isinstance(exc, AppError):
         code, status, message = (
             "processing_dependency",
             exc.status_code,
@@ -55,12 +47,9 @@ def run_failure(meeting_id, job_key, lease, exc):
     fail(status, code, message, True)
 
 
-@router.get("/integrations")
-def integrations(owner=Depends(current_user)):
+def integrations(owner):
     with db.connection() as conn:
-        budget = conn.execute(
-            "select expires_at,expires_at>now() as verified,audio_limit-audio_reserved as audio_seconds_remaining,request_limit-requests_reserved as text_requests_remaining,token_limit-tokens_reserved as text_tokens_remaining from app.provider_budget where provider='groq'"
-        ).fetchone()
+        budget = evidence_repository.get_budget_status(conn)
     return {
         "capture": {
             "available": False,
@@ -71,11 +60,9 @@ def integrations(owner=Depends(current_user)):
     }
 
 
-@router.post("/meetings/{meeting_id}/send")
-@router.post("/meetings/{meeting_id}/stop")
-def blocked_capture(meeting_id: UUID, owner=Depends(current_user)):
+def blocked_capture(meeting_id: UUID, owner):
     with db.connection() as conn:
-        db.owned(conn, meeting_id, owner)
+        meeting_service.require_owned(conn, meeting_id, owner)
     fail(
         503,
         "capture_verification_required",
@@ -83,26 +70,14 @@ def blocked_capture(meeting_id: UUID, owner=Depends(current_user)):
     )
 
 
-@router.get("/meetings/{meeting_id}/evidence")
-def get_evidence(meeting_id: UUID, owner=Depends(current_user)):
+def get_evidence(meeting_id: UUID, owner):
     with db.connection() as conn:
-        db.owned(conn, meeting_id, owner)
-        segments = segments_for(conn, meeting_id)
-        summary = conn.execute(
-            "select content from app.summaries where meeting_id=%s", (meeting_id,)
-        ).fetchone()
-        actions = conn.execute(
-            "select id,text,owner,due_date,completed,source_segment_ids from app.action_items where meeting_id=%s order by created_at,id",
-            (meeting_id,),
-        ).fetchall()
-        questions = conn.execute(
-            "select id,question,answer,created_at from app.questions where meeting_id=%s order by created_at",
-            (meeting_id,),
-        ).fetchall()
-        progress = conn.execute(
-            "select job_key,stage,status,attempts,error_code,retry_after,lease_until,status='running' and lease_until<now() as interrupted from app.processing_jobs where meeting_id=%s order by job_key",
-            (meeting_id,),
-        ).fetchall()
+        meeting_service.require_owned(conn, meeting_id, owner)
+        segments = evidence_repository.list_segments(conn, meeting_id)
+        summary = evidence_repository.get_summary(conn, meeting_id)
+        actions = evidence_repository.list_actions(conn, meeting_id)
+        questions = evidence_repository.list_questions(conn, meeting_id)
+        progress = evidence_repository.list_jobs(conn, meeting_id)
     return {
         "segments": segments,
         "summary": summary["content"] if summary else None,
@@ -112,30 +87,30 @@ def get_evidence(meeting_id: UUID, owner=Depends(current_user)):
     }
 
 
-@router.patch("/meetings/{meeting_id}/actions/{action_id}")
-def update_action(
-    meeting_id: UUID, action_id: UUID, body: ActionUpdate, owner=Depends(current_user)
-):
+def update_action(meeting_id: UUID, action_id: UUID, body: ActionUpdate, owner):
     with db.connection() as conn:
-        db.owned(conn, meeting_id, owner, lock=True)
-        row = conn.execute(
-            "update app.action_items set text=%s,owner=%s,due_date=%s,completed=%s where meeting_id=%s and id=%s returning id,text,owner,due_date,completed,source_segment_ids",
-            (body.text, body.owner, body.due_date, body.completed, meeting_id, action_id),
-        ).fetchone()
+        meeting_service.require_owned(conn, meeting_id, owner, lock=True)
+        row = evidence_repository.update_action(
+            conn,
+            action_id=action_id,
+            action_owner=body.owner,
+            completed=body.completed,
+            due_date=body.due_date,
+            meeting_id=meeting_id,
+            text=body.text,
+        )
         if not row:
             fail(404, "action_not_found", "Action item not found.")
     return row
 
 
-@router.post("/meetings/{meeting_id}/recover")
-def recover_processing(meeting_id: UUID, owner=Depends(current_user)):
+def recover_processing(meeting_id: UUID, owner):
     return jobs.recover(meeting_id, owner)
 
 
-@router.post("/meetings/{meeting_id}/transcribe")
-def transcribe(meeting_id: UUID, owner=Depends(current_user)):
+def transcribe(meeting_id: UUID, owner):
     with db.connection() as conn:
-        meeting = db.owned(conn, meeting_id, owner)
+        meeting = meeting_service.require_owned(conn, meeting_id, owner)
     if meeting["transcription_state"] == "ready":
         return {"status": "ready"}
     if (
@@ -168,27 +143,16 @@ def transcribe(meeting_id: UUID, owner=Depends(current_user)):
         with db.connection() as conn:
             jobs.finish(conn, meeting_id, "transcribe", lease)
             for segment in segments:
-                conn.execute(
-                    "insert into app.transcript_segments(id,meeting_id,ordinal,text,start_seconds,end_seconds,speaker) values(%s,%s,%s,%s,%s,%s,null)",
-                    (
-                        segment.id,
-                        meeting_id,
-                        segment.ordinal,
-                        segment.text,
-                        segment.start_seconds,
-                        segment.end_seconds,
-                    ),
-                )
+                evidence_repository.insert_segment(conn, meeting_id=meeting_id, segment=segment)
         return {"status": "ready"}
     except Exception as exc:
         run_failure(meeting_id, "transcribe", lease, exc)
 
 
-@router.post("/meetings/{meeting_id}/summarize")
-def summarize(meeting_id: UUID, owner=Depends(current_user)):
+def summarize(meeting_id: UUID, owner):
     with db.connection() as conn:
-        meeting = db.owned(conn, meeting_id, owner)
-        segments = segments_for(conn, meeting_id)
+        meeting = meeting_service.require_owned(conn, meeting_id, owner)
+        segments = evidence_repository.list_segments(conn, meeting_id)
     if meeting["summary_state"] == "ready":
         return {"status": "ready"}
     if not segments:
@@ -203,43 +167,27 @@ def summarize(meeting_id: UUID, owner=Depends(current_user)):
         summary = ai.generate(payload, segments)
         with db.connection() as conn:
             jobs.finish(conn, meeting_id, "summarize", lease)
-            conn.execute(
-                "insert into app.summaries(meeting_id,content,model) values(%s,%s,%s)",
-                (
-                    meeting_id,
-                    Jsonb(summary.model_dump(exclude={"action_items"})),
-                    settings().groq_text_model,
-                ),
+            evidence_repository.insert_summary(
+                conn, meeting_id=meeting_id, model=settings().groq_text_model, summary=summary
             )
             for action in summary.action_items:
-                conn.execute(
-                    "insert into app.action_items(meeting_id,text,owner,due_date,source_segment_ids) values(%s,%s,%s,%s,%s)",
-                    (
-                        meeting_id,
-                        action.text,
-                        action.owner,
-                        action.due_date,
-                        [UUID(s) for s in action.source_segment_ids],
-                    ),
-                )
+                evidence_repository.insert_action(conn, action=action, meeting_id=meeting_id)
         return {"status": "ready"}
     except Exception as exc:
         run_failure(meeting_id, "summarize", lease, exc)
 
 
-@router.post("/meetings/{meeting_id}/questions")
-def ask(meeting_id: UUID, body: QuestionCreate, owner=Depends(current_user)):
+def ask(meeting_id: UUID, body: QuestionCreate, owner):
     with db.connection() as conn:
-        db.owned(conn, meeting_id, owner)
-        saved = conn.execute(
-            "select question,answer from app.questions where meeting_id=%s and request_id=%s",
-            (meeting_id, body.request_id),
-        ).fetchone()
+        meeting_service.require_owned(conn, meeting_id, owner)
+        saved = evidence_repository.find_question(
+            conn, meeting_id=meeting_id, request_id=body.request_id
+        )
         if saved:
             if saved["question"] != body.question:
                 fail(409, "request_conflict", "Request ID already used for a different question.")
             return saved["answer"]
-        segments = segments_for(conn, meeting_id)
+        segments = evidence_repository.list_segments(conn, meeting_id)
     if not segments:
         fail(409, "transcript_not_ready", "Generate a transcript first.")
     if not settings().groq_api_key.get_secret_value():
@@ -249,23 +197,20 @@ def ask(meeting_id: UUID, body: QuestionCreate, owner=Depends(current_user)):
     lease = jobs.claim(meeting_id, owner, "question", job_key, body.question, tokens=tokens)
     if lease is None:
         with db.connection() as conn:
-            return conn.execute(
-                "select answer from app.questions where meeting_id=%s and request_id=%s",
-                (meeting_id, body.request_id),
-            ).fetchone()["answer"]
+            return evidence_repository.get_answer(
+                conn, meeting_id=meeting_id, request_id=body.request_id
+            )["answer"]
     try:
         answer = ai.generate(payload, segments, question=True)
         with db.connection() as conn:
             jobs.finish(conn, meeting_id, job_key, lease)
-            conn.execute(
-                "insert into app.questions(meeting_id,request_id,question,answer,model) values(%s,%s,%s,%s,%s)",
-                (
-                    meeting_id,
-                    body.request_id,
-                    body.question,
-                    Jsonb(answer.model_dump()),
-                    settings().groq_text_model,
-                ),
+            evidence_repository.insert_question(
+                conn,
+                answer=answer,
+                meeting_id=meeting_id,
+                model=settings().groq_text_model,
+                question=body.question,
+                request_id=body.request_id,
             )
         return answer
     except Exception as exc:

@@ -8,6 +8,18 @@ Use Node 24, pnpm 11.25.0, Python 3.12, and uv. Run `pnpm install --frozen-lockf
 
 You create and maintain `frontend/.env.local` and `backend/.env.local` yourself. No environment files, examples, or credentials belong in Git. Python loads only `backend/.env.local` in local development, with existing process environment taking precedence. It does not load files when `VERCEL` is set or `APP_ENV` is not `development`.
 
+## Backend architecture
+
+Request flow is `routers → services → repositories`.
+
+- `backend/app/routers/`: HTTP routes, request schemas, and authentication dependencies.
+- `backend/app/services/`: ownership checks, business rules, processing workflows, and transaction boundaries.
+- `backend/app/repositories/`: SQL reads and writes using the connection supplied by the service. Repositories do not commit or open their own transactions.
+- `backend/app/integrations/`: Groq and Supabase Storage adapters.
+- `backend/app/db.py`: connection configuration; `main.py`: application wiring, middleware, and error-to-HTTP translation.
+
+Keep database access out of routers. Services raise application errors; HTTP handlers preserve the existing status codes and response bodies. Processing completion and evidence persistence share one transaction.
+
 ## Required configuration
 
 All configuration below is server-side. There are no `NEXT_PUBLIC_` variables.
