@@ -5,3 +5,4 @@
 **/tests/**
 **/.pytest_cache/**
 .git/**
+**/local-recordings/**
