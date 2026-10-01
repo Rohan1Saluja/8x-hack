@@ -1,0 +1,24 @@
+[project]
+name = "eightx-backend"
+version = "0.1.0"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "fastapi==0.142.2", "pydantic==2.13.5", "pydantic-settings==2.15.0",
+  "httpx==0.28.1", "PyJWT[crypto]==2.15.1", "psycopg[binary]==3.3.6",
+  "uvicorn==0.54.0"
+]
+
+[dependency-groups]
+dev = ["pytest==9.1.1", "ruff==0.16.9", "pgserver==0.1.4"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B"]
+ignore = ["E501", "B008"]
