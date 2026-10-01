@@ -69,11 +69,11 @@ def generate(payload, segments, *, question=False):
     return validate_evidence(value, segments)
 
 
-def transcribe(meeting_id: UUID, recording_url: str, duration: float):
+def transcribe(meeting_id: UUID, recording: tuple[str, bytes], duration: float):
     with groq_client() as client:
         response = client.audio.transcriptions.create(
             model=settings().groq_transcription_model,
-            url=recording_url,
+            file=recording,
             response_format="verbose_json",
             timestamp_granularities=["segment"],
             temperature=0,

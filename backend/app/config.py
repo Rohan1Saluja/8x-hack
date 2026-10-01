@@ -12,9 +12,7 @@ class Settings(BaseSettings):
     auth0_domain: str = ""
     auth0_audience: str = ""
     database_url: SecretStr = SecretStr("")
-    supabase_url: str = ""
-    supabase_service_role_key: SecretStr = SecretStr("")
-    recording_bucket: str = "recordings"
+    blob_read_write_token: SecretStr = SecretStr("")
     playback_url_seconds: int = Field(default=300, ge=30, le=600)
     groq_api_key: SecretStr = SecretStr("")
     groq_transcription_model: str = "whisper-large-v3-turbo"

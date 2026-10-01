@@ -50,7 +50,7 @@ def get_playback(meeting_id: UUID, owner):
         meeting = require_owned(conn, meeting_id, owner)
     if not meeting["recording_key"]:
         fail(409, "recording_not_ready", "This meeting has no persisted recording yet.")
-    return storage.playback_url(meeting["recording_key"])
+    return storage.playback_descriptor(meeting["recording_key"])
 
 
 def delete_meeting(meeting_id: UUID, owner):

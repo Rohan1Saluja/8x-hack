@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { auth0, missingAuthConfiguration } from "@/lib/auth0";
+import { signPlayback } from "@/lib/blob";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -64,6 +65,18 @@ async function forward(
       },
       signal: AbortSignal.timeout(240000),
     });
+    if (request.method === "GET" && path.endsWith("/playback") && response.ok) {
+      try {
+        return Response.json(await signPlayback(await response.json()), {
+          headers: { "Cache-Control": "no-store" },
+        });
+      } catch {
+        return error(
+          502,
+          "Recording storage is unavailable. Check the Blob token and private store.",
+        );
+      }
+    }
     return new Response(
       response.status === 204 ? null : await response.text(),
       {
