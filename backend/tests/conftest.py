@@ -23,11 +23,7 @@ def postgres(tmp_path_factory):
         server = pgserver.get_server(tmp_path_factory.mktemp("pgdata"), cleanup_mode="delete")
         uri = server.get_uri()
     with psycopg.connect(uri, autocommit=True) as conn:
-        conn.execute("create role anon; create role authenticated; create schema storage")
-        # Minimal Supabase bucket metadata fixture; actual Storage HTTP API remains unverified.
-        conn.execute(
-            "create table storage.buckets(id text primary key, name text, public boolean, file_size_limit bigint, allowed_mime_types text[])"
-        )
+        conn.execute((Path(__file__).parents[2] / "docker/postgres/000_roles.sql").read_text())
         for migration in sorted((Path(__file__).parents[2] / "supabase/migrations").glob("*.sql")):
             conn.execute(migration.read_text())
     yield uri

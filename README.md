@@ -4,9 +4,29 @@ Preparation checkpoint for a Fathom-inspired Google Meet assistant. pnpm monorep
 
 ## Local setup
 
-Use Node 24, pnpm 11.25.0, Python 3.12, and uv. Run `pnpm install --frozen-lockfile`, then `cd backend` and `uv sync --frozen`. Apply SQL files in `supabase/migrations` in filename order using the Supabase SQL editor. Return to the root and run `pnpm dev` (frontend :3000, backend :8000).
+Use Node 24, pnpm 11.25.0, Python 3.12, uv, and Docker with Compose v2. Run `pnpm install --frozen-lockfile`, then `cd backend` and `uv sync --frozen`. Return to the repo root.
 
-You create and maintain `frontend/.env.local` and `backend/.env.local` yourself. No environment files, examples, or credentials belong in Git. Python loads only `backend/.env.local` in local development, with existing process environment taking precedence. It does not load files when `VERCEL` is set or `APP_ENV` is not `development`.
+Start the local PostgreSQL database:
+
+```sh
+docker compose up -d --wait db
+```
+
+The database is available only on `127.0.0.1:5433`, with database/user `eightx` and the public development-only password `eightx_local_dev`. Set `DATABASE_URL` in your backend local environment to `postgresql://eightx:eightx_local_dev@127.0.0.1:5433/eightx?sslmode=disable` and keep `APP_ENV=development`. These credentials must never be used for a hosted database. Port 5433 avoids the usual local PostgreSQL port 5432; change the Compose host port and your URL together if it is already occupied.
+
+On the first start with an empty volume, Docker creates the compatibility roles and runs both app migrations in order. No Supabase database connection is needed for local app data. Check the initialized tables with:
+
+```sh
+docker compose exec db psql -U eightx -d eightx -c "select table_name from information_schema.tables where table_schema = 'app' order by table_name;"
+```
+
+Expect eight tables. Run `pnpm dev` to start the frontend on :3000 and backend on :8000. `docker compose down` stops the database while retaining its named volume. Initialization scripts only run for a new, empty volume; later migrations must be applied explicitly. If startup fails, inspect `docker compose logs db` before proceeding. Do not delete the volume to fix an error unless its local data is disposable.
+
+Recordings still use hosted Supabase Storage: keep `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` configured. Run `supabase/setup/recordings_bucket.sql` in that project's SQL Editor to provision the private bucket. It is safe to rerun this bucket setup; it does not delete recordings. This setup does not implement Vercel Blob or local filesystem storage.
+
+For a fresh hosted Supabase application database, apply the files in `supabase/migrations` in filename order, then `supabase/setup/recordings_bucket.sql`. Previously initialized projects need no schema changes: bucket provisioning was extracted from the first migration without changing the application tables. Do not rerun already-applied app migrations.
+
+You create and maintain `frontend/.env.local` and `backend/.env.local` yourself. No environment files, examples, or real credentials belong in Git. Python loads only `backend/.env.local` in local development, with existing process environment taking precedence. It does not load files when `VERCEL` is set or `APP_ENV` is not `development`.
 
 ## Backend architecture
 
@@ -33,11 +53,11 @@ All configuration below is server-side. There are no `NEXT_PUBLIC_` variables.
 | `AUTH0_SECRET`              | Frontend            | Locally generate 32 random bytes encoded as hex for encrypted session cookies.                                               |
 | `APP_BASE_URL`              | Frontend            | Application origin, locally `http://localhost:3000`, without trailing slash.                                                 |
 | `BACKEND_URL`               | Frontend            | Backend origin, locally `http://localhost:8000`.                                                                             |
-| `DATABASE_URL`              | Backend             | Supabase Connect → transaction pooler URI (port 6543); use TLS (`sslmode=require`), prepared statements disabled by the app. |
+| `DATABASE_URL`              | Backend             | Local: Docker PostgreSQL on port 5433 (see above). Production: Supabase transaction pooler on port 6543 with `sslmode=require`. |
 | `SUPABASE_URL`              | Backend             | Project URL from Supabase project settings.                                                                                  |
 | `SUPABASE_SERVICE_ROLE_KEY` | Backend             | Supabase legacy service-role key for server-only private Storage operations; never use the anon key here.                    |
 | `APP_ENV`                   | Backend             | `development` locally; `production` for the production project.                                                              |
-| `RECORDING_BUCKET`          | Backend, optional   | Defaults to `recordings`, created private by the migration. Keep the default unless you also update the bucket migration.    |
+| `RECORDING_BUCKET`          | Backend, optional   | Defaults to `recordings`, created private by `supabase/setup/recordings_bucket.sql`. Keep the default unless you also update that setup. |
 | `PLAYBACK_URL_SECONDS`      | Backend, optional   | Signed playback URL lifetime; default 300, maximum 600 seconds.                                                              |
 
 Auth0: register `http://localhost:3000/auth/callback` under Allowed Callback URLs and `http://localhost:3000` under Allowed Logout URLs and Allowed Web Origins. Add the same paths on the eventual production frontend origin. Enable refresh tokens for the API/application if using `offline_access`. The backend verifies signature, RS256, issuer, audience, expiry, issued-at, and subject; the frontend SDK handles the login/logout session. Tokens are never returned to browser JavaScript. Every meeting request derives ownership from the verified subject.
@@ -52,7 +72,7 @@ Use Hobby/free projects only. Confirm actual account plans and usage before enab
 
 `pnpm typecheck`, `pnpm build`, `pnpm check:backend`, `pnpm test:backend`, and `pnpm check:secrets`.
 
-Backend tests create a disposable local PostgreSQL server via the **development-only** pgserver dependency. Supabase bucket metadata is a fixture; these tests do not prove actual Storage or Auth0 account connectivity. Generated test RSA keys exercise signature and claim validation with a fixture JWKS, not a real Auth0 login.
+Backend tests create a disposable local PostgreSQL server via the **development-only** pgserver dependency. They apply the same roles and app migrations used by Docker, without a Supabase Storage schema; these tests do not prove actual Storage or Auth0 account connectivity. Generated test RSA keys exercise signature and claim validation with a fixture JWKS, not a real Auth0 login.
 
 ## Preparation status
 
