@@ -13,7 +13,9 @@ bearer = HTTPBearer(auto_error=False)
 
 @lru_cache
 def jwks_client(issuer: str) -> PyJWKClient:
-    return PyJWKClient(f"{issuer}.well-known/jwks.json", cache_jwk_set=True, lifespan=300, timeout=5)
+    return PyJWKClient(
+        f"{issuer}.well-known/jwks.json", cache_jwk_set=True, lifespan=300, timeout=5
+    )
 
 
 def subject(credentials: HTTPAuthorizationCredentials | None = Depends(bearer)) -> str:
@@ -29,8 +31,13 @@ def subject(credentials: HTTPAuthorizationCredentials | None = Depends(bearer)) 
             fail(401, "invalid_token", "Access token is invalid or expired.")
         key = jwks_client(issuer).get_signing_key_from_jwt(token).key
         claims = jwt.decode(
-            token, key, algorithms=["RS256"], audience=config.auth0_audience, issuer=issuer,
-            options={"require": ["exp", "iat", "iss", "aud", "sub"]}, leeway=5,
+            token,
+            key,
+            algorithms=["RS256"],
+            audience=config.auth0_audience,
+            issuer=issuer,
+            options={"require": ["exp", "iat", "iss", "aud", "sub"]},
+            leeway=5,
         )
         value = claims["sub"]
         if not isinstance(value, str) or not value or len(value) > 255:

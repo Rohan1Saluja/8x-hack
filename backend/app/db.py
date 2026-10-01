@@ -1,3 +1,4 @@
+import os
 from contextlib import contextmanager
 
 import psycopg
@@ -13,7 +14,12 @@ def connection():
     if not url:
         fail(503, "database_not_configured", "Configure DATABASE_URL and apply the migrations.")
     # Supavisor transaction pooling does not support prepared statements.
-    with psycopg.connect(url, row_factory=dict_row, prepare_threshold=None, connect_timeout=5) as db:
+    tls = (
+        {"sslmode": "require"} if settings().app_env == "production" or os.getenv("VERCEL") else {}
+    )
+    with psycopg.connect(
+        url, row_factory=dict_row, prepare_threshold=None, connect_timeout=5, **tls
+    ) as db:
         db.execute("set local statement_timeout = '10s'")
         yield db
 
@@ -22,7 +28,8 @@ def user_id(auth0_sub: str):
     with connection() as db:
         return db.execute(
             "insert into app.users(auth0_sub) values (%s) on conflict(auth0_sub) "
-            "do update set auth0_sub=excluded.auth0_sub returning id", (auth0_sub,),
+            "do update set auth0_sub=excluded.auth0_sub returning id",
+            (auth0_sub,),
         ).fetchone()["id"]
 
 

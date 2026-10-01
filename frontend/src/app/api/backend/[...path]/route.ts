@@ -7,11 +7,19 @@ const uuid = "[0-9a-fA-F-]{36}";
 const routes: Record<string, RegExp[]> = {
   GET: [
     /^me$/,
+    /^integrations$/,
     /^meetings$/,
     new RegExp(`^meetings/${uuid}$`),
     new RegExp(`^meetings/${uuid}/playback$`),
+    new RegExp(`^meetings/${uuid}/evidence$`),
   ],
-  POST: [/^meetings$/],
+  POST: [
+    /^meetings$/,
+    new RegExp(
+      `^meetings/${uuid}/(send|stop|transcribe|summarize|questions|recover)$`,
+    ),
+  ],
+  PATCH: [new RegExp(`^meetings/${uuid}/actions/${uuid}$`)],
   DELETE: [new RegExp(`^meetings/${uuid}$`)],
 };
 const error = (status: number, message: string) =>
@@ -73,4 +81,4 @@ async function forward(
     );
   }
 }
-export { forward as GET, forward as POST, forward as DELETE };
+export { forward as GET, forward as POST, forward as PATCH, forward as DELETE };
