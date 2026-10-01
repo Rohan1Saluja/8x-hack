@@ -1,8 +1,16 @@
 # 8x-hack
 
-Preparation checkpoint for a Fathom-inspired Google Meet assistant. pnpm monorepo: Next.js frontend, FastAPI backend, Supabase Postgres and private Storage, Auth0 identity. No deployed services, calendar integration, or paid fallback.
+Preparation checkpoint for a Fathom-inspired Google Meet assistant. pnpm monorepo: Next.js frontend, FastAPI backend, PostgreSQL, private Vercel Blob recordings, and Auth0 identity. No deployed services, calendar integration, or paid fallback.
 
 ## Local setup
+
+| Component | Local development | Production |
+| --- | --- | --- |
+| Database | Docker PostgreSQL | Supabase PostgreSQL |
+| Recording files | Vercel Blob (private) | The same Vercel Blob store |
+| Login | Auth0 | Auth0 |
+| Transcription and notes | Groq Free | Groq Free |
+
 
 Use Node 24, pnpm 11.25.0, Python 3.12, uv, and Docker with Compose v2. Run `pnpm install --frozen-lockfile`, then `cd backend` and `uv sync --frozen`. Return to the repo root.
 
@@ -22,9 +30,23 @@ docker compose exec db psql -U eightx -d eightx -c "select table_name from infor
 
 Expect eight tables. Run `pnpm dev` to start the frontend on :3000 and backend on :8000. `docker compose down` stops the database while retaining its named volume. Initialization scripts only run for a new, empty volume; later migrations must be applied explicitly. If startup fails, inspect `docker compose logs db` before proceeding. Do not delete the volume to fix an error unless its local data is disposable.
 
-Recordings still use hosted Supabase Storage: keep `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` configured. Run `supabase/setup/recordings_bucket.sql` in that project's SQL Editor to provision the private bucket. It is safe to rerun this bucket setup; it does not delete recordings. This setup does not implement Vercel Blob or local filesystem storage.
+Create one **private** Vercel Blob store in the Vercel dashboard (Storage → Create Storage → Blob → Private). Copy its `BLOB_READ_WRITE_TOKEN` into both local environment files, and later into both Vercel projects. The frontend uses it only in server code to sign private playback URLs; the backend uses it for upload, download, and deletion. Use the same store/token in both places. Do not use a public store or prefix this variable with `NEXT_PUBLIC_`.
 
-For a fresh hosted Supabase application database, apply the files in `supabase/migrations` in filename order, then `supabase/setup/recordings_bucket.sql`. Previously initialized projects need no schema changes: bucket provisioning was extracted from the first migration without changing the application tables. Do not rerun already-applied app migrations.
+No Supabase Storage bucket, storage service-role key, filesystem storage mode, or local recording directory is needed. If configured previously, remove `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `RECORDING_BUCKET`, `RECORDING_STORAGE`, `LOCAL_RECORDINGS_DIR`, and `LOCAL_STORAGE_BASE_URL`. Keep the Supabase connection string only for the production database.
+
+For a fresh production Supabase database, run the two files in `supabase/migrations` in filename order. Existing databases need no new migration for the Blob switch. Never rerun already-applied migrations. Old Supabase/local-file recording references are not automatically transferred to Blob; use a new meeting for the first Blob test.
+
+Uploads use unique paths under `development/` or `production/` in that single store. Delete test meetings in the app to remove their development blobs, or clean up `development/` in the Blob dashboard when finished. Sharing the store does not synchronize the two databases: each database still needs its own meeting metadata. If production recording references are copied into a local database, playback/transcription can reuse those files, and deleting the local meeting leaves production blobs intact. Do not delete a production blob while either database still needs it.
+
+### Test with a recording
+
+Live capture is still pending. To test storage now, create a meeting in the app, get its `id` from the signed-in JSON response at `http://localhost:3000/api/backend/meetings`, then run this operator command from `backend`:
+
+```sh
+uv run python -m app.admin import-recording --meeting-id MEETING_UUID --file "/absolute/path/to/sample.wav"
+```
+
+Use a complete PCM WAV file up to 3 minutes and 24 MB. The command uploads it privately to Blob and attaches it to an empty meeting; it does not start AI processing. Refresh the meeting for playback. Transcription downloads the private file on the backend and uploads it to Groq after the existing free-budget approval. Audio/video bytes never pass through the frontend proxy.
 
 You create and maintain `frontend/.env.local` and `backend/.env.local` yourself. No environment files, examples, or real credentials belong in Git. Python loads only `backend/.env.local` in local development, with existing process environment taking precedence. It does not load files when `VERCEL` is set or `APP_ENV` is not `development`.
 
@@ -35,7 +57,7 @@ Request flow is `routers → services → repositories`.
 - `backend/app/routers/`: HTTP routes, request schemas, and authentication dependencies.
 - `backend/app/services/`: ownership checks, business rules, processing workflows, and transaction boundaries.
 - `backend/app/repositories/`: SQL reads and writes using the connection supplied by the service. Repositories do not commit or open their own transactions.
-- `backend/app/integrations/`: Groq and Supabase Storage adapters.
+- `backend/app/integrations/`: Groq and Vercel Blob adapters.
 - `backend/app/db.py`: connection configuration; `main.py`: application wiring, middleware, and error-to-HTTP translation.
 
 Keep database access out of routers. Services raise application errors; HTTP handlers preserve the existing status codes and response bodies. Processing completion and evidence persistence share one transaction.
@@ -54,10 +76,8 @@ All configuration below is server-side. There are no `NEXT_PUBLIC_` variables.
 | `APP_BASE_URL`              | Frontend            | Application origin, locally `http://localhost:3000`, without trailing slash.                                                 |
 | `BACKEND_URL`               | Frontend            | Backend origin, locally `http://localhost:8000`.                                                                             |
 | `DATABASE_URL`              | Backend             | Local: Docker PostgreSQL on port 5433 (see above). Production: Supabase transaction pooler on port 6543 with `sslmode=require`. |
-| `SUPABASE_URL`              | Backend             | Project URL from Supabase project settings.                                                                                  |
-| `SUPABASE_SERVICE_ROLE_KEY` | Backend             | Supabase legacy service-role key for server-only private Storage operations; never use the anon key here.                    |
+| `BLOB_READ_WRITE_TOKEN`     | Both, server-only   | Read/write token from the same private Vercel Blob store. |
 | `APP_ENV`                   | Backend             | `development` locally; `production` for the production project.                                                              |
-| `RECORDING_BUCKET`          | Backend, optional   | Defaults to `recordings`, created private by `supabase/setup/recordings_bucket.sql`. Keep the default unless you also update that setup. |
 | `PLAYBACK_URL_SECONDS`      | Backend, optional   | Signed playback URL lifetime; default 300, maximum 600 seconds.                                                              |
 
 Auth0: register `http://localhost:3000/auth/callback` under Allowed Callback URLs and `http://localhost:3000` under Allowed Logout URLs and Allowed Web Origins. Add the same paths on the eventual production frontend origin. Enable refresh tokens for the API/application if using `offline_access`. The backend verifies signature, RS256, issuer, audience, expiry, issued-at, and subject; the frontend SDK handles the login/logout session. Tokens are never returned to browser JavaScript. Every meeting request derives ownership from the verified subject.
@@ -70,28 +90,29 @@ Use Hobby/free projects only. Confirm actual account plans and usage before enab
 
 ## Checks
 
-`pnpm typecheck`, `pnpm build`, `pnpm check:backend`, `pnpm test:backend`, and `pnpm check:secrets`.
+`pnpm typecheck`, `pnpm build`, `pnpm --filter frontend test:blob`, `pnpm check:backend`, `pnpm test:backend`, and `pnpm check:secrets`.
 
-Backend tests create a disposable local PostgreSQL server via the **development-only** pgserver dependency. They apply the same roles and app migrations used by Docker, without a Supabase Storage schema; these tests do not prove actual Storage or Auth0 account connectivity. Generated test RSA keys exercise signature and claim validation with a fixture JWKS, not a real Auth0 login.
+Backend tests create a disposable local PostgreSQL server via the **development-only** pgserver dependency. They apply the same roles and app migrations used by Docker, without a Supabase Storage schema; Blob SDK calls and Auth0 JWKS are mocked, so these tests do not prove live account connectivity. Generated test RSA keys exercise signature and claim validation with a fixture JWKS, not a real Auth0 login.
 
 ## Preparation status
 
 Implemented foundations: protected workspace, server-side token forwarding, public health, authenticated identity, owner-scoped meeting creation/library/reads/deletion, idempotent meeting creation, and authorization before signed playback.
 
-Real login/logout, Supabase account connectivity and signed playback require your configuration. Recall free account balance, no-payment-method eligibility, operation charges, provider region, and an authorized webhook URL remain unverified. Capture is intentionally unavailable, and no browser recording fallback has been introduced.
+Real login/logout, database connectivity and private Blob playback require your configuration. Recall free account balance, no-payment-method eligibility, operation charges, provider region, and an authorized webhook URL remain unverified. Capture is intentionally unavailable, and no browser recording fallback has been introduced.
 
 ## References checked on 2026-10-01
 
 - [Auth0 Next.js SDK](https://github.com/auth0/nextjs-auth0): v4 uses `AUTH0_DOMAIN`, `APP_BASE_URL`, `/auth/callback`, and explicit API audience. Pinned SDK peer dependencies exclude React 19.3, so React 19.2 is used.
 - [Vercel function limits](https://vercel.com/docs/functions/limitations): Hobby Fluid Node/Python maximum 300 seconds; request/response maximum 4.5 MB. Older skill examples conflict; the current official limits page governs.
 - [Vercel FastAPI](https://vercel.com/docs/frameworks/backend/fastapi): framework discovers `app/main.py`.
-- [Supabase connections](https://supabase.com/docs/guides/database/connecting-to-postgres) and [private buckets](https://supabase.com/docs/guides/storage/buckets/fundamentals).
+- [Supabase connections](https://supabase.com/docs/guides/database/connecting-to-postgres).
+- [Vercel Blob SDK](https://vercel.com/docs/vercel-blob/using-blob-sdk) and [signed URLs](https://vercel.com/docs/vercel-blob/vercel-signed-urls).
 - [Recall pricing](https://www.recall.ai/pricing): public initial five-hour offer is not proof of this account's eligibility; storage retention can introduce charges.
 - [Fathom](https://www.fathom.ai/): reviewed public product references for library, recording, summary, action-item, and question organization. Preparation interface uses a simple sidebar and split library/detail view; it does not claim pixel fidelity to private product screens.
 
 ## Review workflow
 
-Feature changes are reviewed through pull requests. `feat/auth-persistence` targets the owner-initialized `main` branch. `feat/evidence-processing` is stacked on `feat/auth-persistence`; retarget it to `main` after the foundation PR merges. PR creation does not authorize merging, deployment, starting the timer, or submission.
+Feature changes are reviewed through pull requests targeting `main`. The unmerged local-filesystem-storage PR is superseded by the single Vercel Blob setup. PR creation does not authorize merging, deployment, starting the timer, or submission.
 
 ## AI configuration and verification
 

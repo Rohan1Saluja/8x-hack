@@ -58,7 +58,7 @@ def test_two_users_and_persistence(client, token, monkeypatch):
     assert len(client.get("/meetings", headers=token()).json()) == 1
     assert client.get("/meetings", headers=token("auth0|bob")).json() == []
     monkeypatch.setattr(
-        storage, "playback_url", lambda _: pytest.fail("Must check ownership before storage")
+        storage, "playback_descriptor", lambda _: pytest.fail("Must check ownership before storage")
     )
     for method, path in [("GET", ""), ("GET", "/playback"), ("DELETE", "")]:
         assert (
@@ -100,11 +100,8 @@ def test_create_idempotency_and_validation(client, token):
         )
 
 
-def test_private_schema_and_bucket(postgres):
+def test_private_schema(postgres):
     with psycopg.connect(postgres) as conn:
-        assert conn.execute(
-            "select public from storage.buckets where id='recordings'"
-        ).fetchone() == (False,)
         assert conn.execute("select has_schema_privilege('anon','app','USAGE')").fetchone() == (
             False,
         )

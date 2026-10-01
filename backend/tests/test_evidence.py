@@ -40,8 +40,8 @@ def recording(client, token, postgres, monkeypatch):
         )
     monkeypatch.setattr(
         storage,
-        "playback_url",
-        lambda _: {"url": "https://storage.example.test/fixture", "expires_in": 300},
+        "download_recording",
+        lambda _: ("fixture.wav", b"fixture audio"),
     )
     return meeting_id
 
@@ -85,6 +85,8 @@ def mock_provider(monkeypatch, recording):
 
     def transcribe(**kwargs):
         state["calls"] += 1
+        assert kwargs["file"] == ("fixture.wav", b"fixture audio")
+        assert "url" not in kwargs
         assert kwargs["response_format"] == "verbose_json"
         assert kwargs["timestamp_granularities"] == ["segment"]
         return SimpleNamespace(
