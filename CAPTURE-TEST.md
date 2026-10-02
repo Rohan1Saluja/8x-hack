@@ -50,7 +50,7 @@ unreachable sandbox proxy; connector reads worked. See the protocol for details.
 Pattern scanning plus human review is a publication safeguard, not a mathematical
 guarantee against secrets or a guarantee that all future exchanges will be captured.
 
-## Canary Session 1 — RECEIVED; FINALIZATION PENDING
+## Canary Session 1 — PASSED (manual prompt/response round-trip)
 
 - Conversation/wrapper ID: `338a3504-61ea-422d-90bf-02d2cb44d506` (current conversation).
 - Actual model for the model-confirmed canary: `GPT-6 ASTRA`, based on the user's
@@ -58,11 +58,20 @@ guarantee against secrets or a guarantee that all future exchanges will be captu
   routing or retrospectively establish the setup-turn model.
 - Prompt event time: `2026-10-02T21:15:01Z`, converted from the message submission
   time supplied for this turn (`2026-10-03T02:45:01+05:30`).
-- Intended log path (not yet created):
+- Committed log path:
   `.agent-logs/2026-10-02_21-15-01_338a3504-61ea-422d-90bf-02d2cb44d506.md`.
-- Result: NOT PASSED. The final response must first be delivered, then copied and
-  committed unchanged in a subsequent turn or operator close-out. Do not mark a
-  receipt record as a completed raw prompt/response pair.
+- Result: PASSED for the completed model-confirmed canary pair. The raw file was
+  validated, committed and read back exactly through GitHub; its parsed prompt and
+  response equal the actual visible message text, including Markdown and backticks.
+- Evidence commit: `a72c948a52d639b74b7a5dbc60a23ded5593c6ef`.
+- Response timestamp: `2026-10-02T21:18:01Z`, the UTC observation/copy time during
+  finalization, NOT a claimed message-delivery timestamp. Exact delivery time is
+  unavailable. Prompt timestamp uses the supplied submission time as described above.
+- Checks: canonical format/filename, one complete exchange, confirmed model, secret
+  patterns, ignore rules, and committed byte equality passed. No tool traces or
+  intermediate messages were included.
+- This is one successful manual canary, not proof of automatic capture or complete
+  historical/session coverage. Canary 2 and the documented capture gaps remain open.
 
 Actual model-confirmed user message, verbatim (including backticks):
 
@@ -83,7 +92,34 @@ Preceding user message, verbatim:
 `CAPTURE TEST — 8x assignment, Rohan Saluja`
 ````
 
-Raw completed PROMPT/RESPONSE entries: pending post-delivery finalization.
+Raw completed PROMPT/RESPONSE entries, copied unchanged from the committed log:
+
+````text
+[LOG_ENTRY type=PROMPT num=1 session=338a3504]
+timestamp: 2026-10-02T21:15:01Z
+model: GPT-6 ASTRA
+
+GPT-6 Astra (High)
+`CAPTURE TEST — 8x assignment, Rohan Saluja`
+
+[LOG_ENTRY type=RESPONSE num=1 session=338a3504]
+timestamp: 2026-10-02T21:18:01Z
+model: GPT-6 ASTRA
+
+Canary 1 received. Model: **GPT-6 ASTRA**, confirmed by you.
+
+Your exact messages are preserved in [CAPTURE-TEST.md](https://github.com/Rohan1Saluja/8x-hack/blob/chore/agent-capture/CAPTURE-TEST.md). Status: **finalization pending**.
+
+Send **`Finalize Canary 1`** here next. I’ll then commit the completed prompt/response pair, including this delivered response, and verify it before marking the canary passed.
+````
+
+The current user close-out prompt was `` `Finalize Canary 1` `` at
+`2026-10-02T21:17:38Z` (submission time). Its own final response is still pending
+delivery while this evidence is written, so that close-out exchange is not included
+in this completed canary pair. Operator close-out is still required for the last
+exchange; no full-session completeness claim is made. A response observation time
+can be later than the next prompt's submission time; do not invent delivery times
+or alter this committed pair to force chronological alignment.
 
 ## Canary Session 2 — PENDING
 
