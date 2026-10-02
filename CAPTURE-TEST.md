@@ -18,8 +18,8 @@ Manual wrapped-session fallback; no automatic hook installed or verified. See
 Only explicit reviewed prompt/final text and required metadata are accepted. Event
 timestamps are used if available; otherwise UTC observation/copy times must be disclosed
 here for each session. Final response capture requires a subsequent turn or operator
-close-out. The setup exchange is not yet logged because its final response has not
-been delivered and its actual model is unconfirmed. This is a bootstrap gap, not a pass.
+close-out. The setup final response has now been delivered, but that exchange is not yet
+logged because its actual model has not been confirmed retrospectively. This is a bootstrap gap, not a pass.
 
 ## Files/configuration changed
 
@@ -50,16 +50,40 @@ unreachable sandbox proxy; connector reads worked. See the protocol for details.
 Pattern scanning plus human review is a publication safeguard, not a mathematical
 guarantee against secrets or a guarantee that all future exchanges will be captured.
 
-## Canary Session 1 — PENDING
+## Canary Session 1 — RECEIVED; FINALIZATION PENDING
 
-Expected real user prompt: `CAPTURE TEST — 8x assignment, Rohan Saluja`
+- Conversation/wrapper ID: `338a3504-61ea-422d-90bf-02d2cb44d506` (current conversation).
+- Actual model for the model-confirmed canary: `GPT-6 ASTRA`, based on the user's
+  explicit `GPT-6 Astra (High)` message. This does not independently verify runtime
+  routing or retrospectively establish the setup-turn model.
+- Prompt event time: `2026-10-02T21:15:01Z`, converted from the message submission
+  time supplied for this turn (`2026-10-03T02:45:01+05:30`).
+- Intended log path (not yet created):
+  `.agent-logs/2026-10-02_21-15-01_338a3504-61ea-422d-90bf-02d2cb44d506.md`.
+- Result: NOT PASSED. The final response must first be delivered, then copied and
+  committed unchanged in a subsequent turn or operator close-out. Do not mark a
+  receipt record as a completed raw prompt/response pair.
 
-- Conversation/wrapper ID: pending actual session.
-- Confirmed actual model and timing basis: pending.
-- Committed log path: pending.
-- Raw PROMPT and RESPONSE entries: absent until the actual exchange is delivered,
-  persisted and verified byte-for-byte against the visible conversation.
-- Result: NOT RUN.
+Actual model-confirmed user message, verbatim (including backticks):
+
+````text
+GPT-6 Astra (High)
+`CAPTURE TEST — 8x assignment, Rohan Saluja`
+````
+
+A separate preceding user message arrived at `2026-10-02T21:14:36Z` without a
+delivered assistant final response between the two messages. Preserve it below;
+do not invent a response, combine it into the later prompt, or count it as a
+second canary session. The current pair-based recorder cannot represent an
+unanswered prompt as a complete exchange; this remains a documented capture gap.
+
+Preceding user message, verbatim:
+
+````text
+`CAPTURE TEST — 8x assignment, Rohan Saluja`
+````
+
+Raw completed PROMPT/RESPONSE entries: pending post-delivery finalization.
 
 ## Canary Session 2 — PENDING
 
