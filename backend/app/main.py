@@ -8,6 +8,9 @@ from app.errors import AppError
 from app.routers.evidence import router as evidence_router
 from app.routers.health import router as health_router
 from app.routers.meetings import router
+import logging
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="8x meeting assistant", version="0.1.0")
 app.include_router(router)
@@ -45,6 +48,7 @@ async def validation_error(request, exc):
 
 @app.exception_handler(psycopg.Error)
 async def database_error(request, exc):
+    logger.exception("PostgreSQL operation failed")
     return JSONResponse(
         status_code=503,
         content={
