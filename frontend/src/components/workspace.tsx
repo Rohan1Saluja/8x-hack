@@ -1,261 +1,429 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
-
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { MeetingDetail } from "@/components/meeting-detail";
+import { StatusBadge } from "@/components/lifecycle-controls";
 import { api } from "@/lib/api";
 import type { Meeting } from "@/lib/types";
-import { MeetingDetail } from "@/components/meeting-detail";
 
-type IntegrationStatus = {
-  ai: {
-    configured: boolean;
-    budget: null | {
-      verified: boolean;
-      audio_seconds_remaining: number;
-      text_requests_remaining: number;
-      text_tokens_remaining: number;
-    };
-  };
-};
+function date(value: string) {
+  return new Date(value).toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
 
 export function Workspace({ name }: { name: string }) {
+  const router = useRouter();
+  const selectedId = useSearchParams().get("meeting");
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [selected, setSelected] = useState<Meeting | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [integrations, setIntegrations] = useState<IntegrationStatus | null>(
-    null,
-  );
+  const [showCreate, setShowCreate] = useState(false);
+  const [demo, setDemo] = useState(false);
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState("all");
   const requestId = useRef<string | null>(null);
+  const locked = useRef(false);
   const refresh = useCallback(async () => {
-    setError("");
-    try {
-      const [rows, status] = await Promise.all([
-        api<Meeting[]>("meetings"),
-        api<IntegrationStatus>("integrations"),
-        api("me"),
-      ]);
-      setMeetings(rows);
-      setIntegrations(status);
-      setSelected((current) =>
-        current ? rows.find((m) => m.id === current.id) || null : null,
-      );
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Unable to load meetings.");
-    } finally {
-      setLoading(false);
-    }
+    const rows = await api<Meeting[]>("meetings");
+    setMeetings(rows);
   }, []);
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    let active = true;
+    setLoading(true);
+    setError("");
+    setSelected(null);
+    void Promise.all([
+      api<Meeting[]>("meetings"),
+      selectedId
+        ? api<Meeting>(`meetings/${selectedId}`)
+        : Promise.resolve(null),
+    ])
+      .then(([rows, meeting]) => {
+        if (active) {
+          setMeetings(rows);
+          setSelected(meeting);
+        }
+      })
+      .catch((e) => {
+        if (active)
+          setError(
+            e instanceof Error ? e.message : "Unable to load your meetings.",
+          );
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [selectedId]);
+
   async function create(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (busy) return;
-    const form = event.currentTarget;
-    const data = new FormData(form);
+    if (locked.current) return;
+    locked.current = true;
+    const data = new FormData(event.currentTarget);
     setBusy(true);
     setError("");
     requestId.current ??= crypto.randomUUID();
     try {
       const meeting = await api<Meeting>("meetings", "POST", {
         title: data.get("title"),
-        meeting_url: data.get("url"),
+        meeting_url: demo ? null : data.get("url"),
+        demo,
         request_id: requestId.current,
       });
       requestId.current = null;
-      form.reset();
-      setSelected(meeting);
-      await refresh();
+      setShowCreate(false);
+      router.push(`/workspace?meeting=${meeting.id}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to save meeting.");
     } finally {
+      locked.current = false;
       setBusy(false);
     }
   }
+  const visible = meetings.filter(
+    (m) =>
+      m.title.toLowerCase().includes(query.toLowerCase()) &&
+      (filter === "all" ||
+        (filter === "active"
+          ? [
+              "joining",
+              "awaiting_admission",
+              "recording",
+              "transcribing",
+              "summarizing",
+            ].includes(m.lifecycle_state)
+          : m.lifecycle_state === "ready")),
+  );
   return (
-    <div className="grid min-h-screen grid-cols-[226px_minmax(0,1fr)] max-[1100px]:grid-cols-[190px_minmax(0,1fr)] max-[650px]:block">
-      <aside className="sticky top-0 flex h-screen flex-col border-r border-line bg-white px-5 py-7 max-[650px]:static max-[650px]:h-auto max-[650px]:flex-row max-[650px]:items-center max-[650px]:gap-[18px] max-[650px]:border-r-0 max-[650px]:border-b max-[650px]:p-4">
-        <a
-          className="mb-[55px] flex touch-manipulation items-center gap-3 text-[32px] font-extrabold tracking-[-2px] text-purple no-underline focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[#b3aaff] max-[650px]:mb-0"
+    <div className="workspace-grid">
+      <aside className="workspace-nav">
+        <Link
           href="/workspace"
+          className="brand"
+          aria-label="8x meeting workspace home"
         >
           8x
-          <span className="max-w-[65px] text-[11px] leading-[1.3] font-medium tracking-[0.01em] text-muted">
-            meeting workspace
+          <span className="brand-mark" aria-hidden="true">
+            ≋
           </span>
-        </a>
-        <p className="mb-4 ml-2.5 text-[10px] font-bold tracking-[1.7px] text-muted max-[650px]:hidden">
-          WORKSPACE
-        </p>
-        <div className="flex items-center gap-3 rounded-[7px] bg-[#eeeafa] p-2.5 text-[#6053c3] max-[650px]:hidden">
-          ▤ <span>My meetings</span>
-          <span className="ml-auto text-[11px]">{meetings.length}</span>
-        </div>
-        <div className="mt-auto flex flex-wrap items-center gap-2 text-[11px] max-[650px]:mt-0 max-[650px]:ml-auto">
-          <span className="inline-grid size-[30px] place-items-center rounded-full bg-[#e8e4f7] text-purple max-[650px]:hidden">
-            {name.slice(0, 1)}
-          </span>
-          <span className="max-[650px]:hidden">{name}</span>
-          <a
-            className="w-full touch-manipulation pl-10 text-purple focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[#b3aaff] max-[650px]:pl-0"
-            href="/auth/logout"
-          >
-            Sign out
-          </a>
+        </Link>
+        <p className="eyebrow mt-12 mb-3 max-md:hidden">WORKSPACE</p>
+        <nav aria-label="Main navigation">
+          <Link href="/workspace" aria-current="page" className="nav-link">
+            <span aria-hidden="true">▤</span> My meetings{" "}
+            <span className="ml-auto text-xs text-muted">
+              {meetings.length}
+            </span>
+          </Link>
+        </nav>
+        <div className="nav-footer">
+          <span className="avatar">{name.slice(0, 1).toUpperCase()}</span>
+          <div className="min-w-0">
+            <p className="truncate text-xs">{name}</p>
+            <a
+              href="/auth/logout"
+              className="mt-1 block text-xs text-muted hover:text-cyan-400"
+            >
+              Sign out
+            </a>
+          </div>
         </div>
       </aside>
-      <main className="m-auto w-full max-w-[1600px] p-10 max-[1100px]:p-[26px] max-[650px]:px-4 max-[650px]:py-[22px]">
-        <header className="mb-6 flex items-center justify-between">
-          <div>
-            <p className="mb-2.5 text-[10px] font-bold tracking-[1.7px] text-muted">
-              YOUR CONVERSATIONS, REMEMBERED
-            </p>
-            <h1 className="mb-3 text-[32px] leading-[1.2] font-semibold tracking-[-1px] max-[650px]:text-[28px]">
-              My meetings
-            </h1>
-          </div>
-          <Button variant="secondary" onClick={() => void refresh()}>
-            Refresh
-          </Button>
-        </header>
-        <div className="mb-6 rounded-lg border border-[#ded8fa] bg-[#f4f1fd] px-[18px] py-4 text-[#504a77]">
-          <strong className="text-[13px]">Capture setup is pending</strong>
-          <p className="mt-1 mb-0 text-xs">
-            Verify Recall.ai’s free allowance and an authorized webhook endpoint
-            before sending a notetaker. You can save meeting links now.
-          </p>
+      <div className="min-w-0">
+        <div className="workspace-topbar">
+          <span>Personal workspace</span>
+          <span className="flex items-center gap-2">
+            <span className="status-dot" /> Private to you
+          </span>
         </div>
-        {integrations && (
-          <p className="mb-3 text-xs text-muted" role="status">
-            {!integrations.ai.configured
-              ? "AI setup needed: configure the Groq Free account key."
-              : !integrations.ai.budget?.verified
-                ? "AI requests are blocked until the current Free account limits are verified."
-                : `Approved AI budget remaining: ${integrations.ai.budget.audio_seconds_remaining} audio seconds · ${integrations.ai.budget.text_requests_remaining} text requests · ${integrations.ai.budget.text_tokens_remaining} reserved-token capacity.`}
-          </p>
-        )}
-        {error && (
-          <p
-            className="mb-3 rounded-[7px] border border-[#f3c7c7] bg-[#fff1f1] p-3 text-[#8f2525]"
-            role="alert"
-          >
-            {error}
-          </p>
-        )}
-        <form
-          className="my-[30px] grid grid-cols-[minmax(120px,1fr)_minmax(180px,1.4fr)_auto] items-end gap-4 max-[1100px]:grid-cols-2 max-[650px]:grid-cols-1"
-          onSubmit={create}
-          onChange={() => {
-            requestId.current = null;
-          }}
-        >
-          <label className="grid gap-[7px] text-xs font-semibold">
-            Meeting title
-            <input
-              className="w-full touch-manipulation rounded-[7px] border border-[#d9dbe5] bg-white px-3 py-[11px] text-ink placeholder:text-[#9295a3] focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[#b3aaff]"
-              name="title"
-              required
-              maxLength={160}
-              placeholder="Weekly product sync"
-            />
-          </label>
-          <label className="grid gap-[7px] text-xs font-semibold">
-            Google Meet link
-            <input
-              className="w-full touch-manipulation rounded-[7px] border border-[#d9dbe5] bg-white px-3 py-[11px] text-ink placeholder:text-[#9295a3] focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[#b3aaff]"
-              name="url"
-              type="url"
-              required
-              pattern="https://meet\.google\.com/[a-z]{3}-[a-z]{4}-[a-z]{3}"
-              placeholder="https://meet.google.com/abc-defg-hij"
-            />
-          </label>
-          <Button
-            className="max-[1100px]:col-span-full"
-            disabled={busy}
-            type="submit"
-          >
-            {busy ? "Saving…" : "Save meeting"}
-          </Button>
-        </form>
-        <div className="grid grid-cols-2 gap-6 max-[1100px]:grid-cols-1">
-          <section className="overflow-hidden rounded-[10px] border border-line bg-white">
-            <div className="flex items-center justify-between gap-2.5 border-b border-line px-5 py-[17px]">
-              <h2 className="m-0 text-[15px] font-semibold">Meeting library</h2>
-              <span className="text-[10px] text-muted">Private to you</span>
-            </div>
-            {loading ? (
-              <p
-                className="mb-3 px-7 py-[58px] text-center text-muted"
-                role="status"
-              >
-                Loading your meetings…
-              </p>
-            ) : meetings.length ? (
-              meetings.map((m) => (
-                <button
-                  className={`flex w-full cursor-pointer touch-manipulation items-center justify-start gap-3 rounded-none border-0 border-b border-line p-[17px] text-left font-normal text-ink focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[#b3aaff] enabled:hover:brightness-94 disabled:cursor-not-allowed disabled:opacity-48 ${selected?.id === m.id ? "bg-[#f5f3ff]" : "bg-white"}`}
-                  key={m.id}
-                  onClick={() => setSelected(m)}
+        <main className="workspace-main">
+          <header className="mb-7 flex flex-wrap items-center justify-between gap-4">
+            <div>
+              {selectedId && (
+                <Link
+                  href="/workspace"
+                  className="mb-4 inline-block text-xs text-muted hover:text-cyan-400"
                 >
-                  <span className="grid size-[30px] shrink-0 place-items-center rounded-[5px] bg-[#edeafa] text-purple">
-                    ▹
-                  </span>
-                  <span>
-                    <strong className="text-[13px] font-semibold">
-                      {m.title}
-                    </strong>
-                    <small className="block text-[10px] text-muted">
-                      {new Date(m.created_at).toLocaleDateString()} · Google
-                      Meet
-                    </small>
-                  </span>
-                  <span className="ml-auto rounded-[5px] bg-[#eeeaf6] px-[7px] py-[3px] text-[9px] whitespace-nowrap text-[#686177]">
-                    {m.capture_state.replaceAll("_", " ")}
-                  </span>
-                </button>
-              ))
-            ) : (
-              <div className="px-7 py-[58px] text-center text-muted">
-                <span className="mb-4 block text-4xl text-[#aaa3d0]">▤</span>
-                <h3 className="mb-2 text-base font-semibold text-ink">
-                  Your next conversation starts here
-                </h3>
-                <p className="m-auto max-w-[320px] text-xs">
-                  Save a Google Meet link to begin. Your recordings and notes
-                  will appear in this library.
-                </p>
-              </div>
-            )}
-          </section>
-          <section className="overflow-hidden rounded-[10px] border border-line bg-white">
-            <div className="flex items-center justify-between gap-2.5 border-b border-line px-5 py-[17px]">
-              <h2 className="m-0 text-[15px] font-semibold">
-                {selected?.title || "Meeting details"}
-              </h2>
+                  ← My meetings
+                </Link>
+              )}
+              <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+                {selectedId
+                  ? selected?.title || "Meeting details"
+                  : "My meetings"}
+              </h1>
+              <p className="mt-2 text-sm text-muted">
+                {selectedId
+                  ? selected
+                    ? `${date(selected.created_at)} · ${selected.meeting_url ? "Google Meet" : "Demo meeting"}`
+                    : "Your recording, notes and next steps."
+                  : "Stay in the conversation. Keep everything that matters."}
+              </p>
             </div>
-            {selected ? (
-              <MeetingDetail
-                key={selected.id}
-                initial={selected}
-                onChanged={refresh}
-              />
-            ) : (
-              <div className="px-7 py-[58px] text-center text-muted">
-                <h3 className="mb-2 text-base font-semibold text-ink">
-                  A little context goes a long way
-                </h3>
-                <p className="m-auto max-w-[320px] text-xs">
-                  Select a meeting to review its recording, notes, and sources.
-                </p>
-              </div>
+            {!selectedId && (
+              <Button
+                onClick={() => {
+                  setShowCreate((v) => !v);
+                  setError("");
+                }}
+              >
+                {showCreate ? "Close" : "+ New meeting"}
+              </Button>
             )}
-          </section>
-        </div>
-      </main>
+          </header>
+          {error && (
+            <div className="error-notice mb-5" role="alert">
+              {error}{" "}
+              <Button
+                variant="text"
+                onClick={() => {
+                  if (selectedId) router.push("/workspace");
+                  else
+                    void refresh()
+                      .then(() => setError(""))
+                      .catch((e) => setError(e.message));
+                }}
+              >
+                {selectedId ? "Back to library" : "Try again"}
+              </Button>
+            </div>
+          )}
+          {selectedId ? (
+            loading ? (
+              <div className="empty-state" role="status">
+                Opening your meeting…
+              </div>
+            ) : (
+              selected && (
+                <MeetingDetail
+                  key={selected.id}
+                  initial={selected}
+                  onChanged={refresh}
+                />
+              )
+            )
+          ) : (
+            <>
+              {showCreate && (
+                <section
+                  className="surface-card mb-7 p-5 sm:p-6"
+                  aria-label="New meeting"
+                >
+                  <h2 className="text-lg font-semibold">
+                    Bring a meeting into your workspace
+                  </h2>
+                  <p className="mt-2 text-sm text-muted">
+                    Paste a Google Meet link, or explore the notetaker with a
+                    demo meeting.
+                  </p>
+                  <form
+                    className="mt-5 grid gap-4"
+                    onSubmit={create}
+                    onChange={() => {
+                      requestId.current = null;
+                    }}
+                  >
+                    <div
+                      className="flex flex-wrap gap-2"
+                      aria-label="Meeting source"
+                    >
+                      <Button
+                        type="button"
+                        variant={demo ? "secondary" : "primary"}
+                        aria-pressed={!demo}
+                        onClick={() => {
+                          setDemo(false);
+                          requestId.current = null;
+                        }}
+                      >
+                        Meeting link
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={demo ? "primary" : "secondary"}
+                        aria-pressed={demo}
+                        onClick={() => {
+                          setDemo(true);
+                          requestId.current = null;
+                        }}
+                      >
+                        Demo meeting
+                      </Button>
+                    </div>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <label className="field-label">
+                        Meeting title
+                        <input
+                          autoFocus
+                          className="field"
+                          name="title"
+                          required
+                          maxLength={160}
+                          placeholder="Weekly product sync"
+                        />
+                      </label>
+                      {!demo && (
+                        <label className="field-label">
+                          Google Meet link
+                          <input
+                            className="field"
+                            type="url"
+                            name="url"
+                            required
+                            pattern="https://meet\.google\.com/[a-z]{3}-[a-z]{4}-[a-z]{3}"
+                            placeholder="https://meet.google.com/abc-defg-hij"
+                          />
+                        </label>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap items-center justify-between gap-4">
+                      <p className="max-w-xl text-xs leading-relaxed text-muted">
+                        This checkpoint uses simulated capture. No live meeting
+                        is joined. You’ll confirm the notice before sending the
+                        notetaker.
+                      </p>
+                      <Button disabled={busy} type="submit">
+                        {busy ? "Creating…" : "Create meeting →"}
+                      </Button>
+                    </div>
+                  </form>
+                </section>
+              )}
+              <section aria-label="Meeting library">
+                <div className="mb-5 flex flex-wrap items-center justify-between gap-4">
+                  <div
+                    className="flex gap-1 rounded-lg bg-surface p-1"
+                    aria-label="Filter meetings"
+                  >
+                    {[
+                      ["all", "All meetings"],
+                      ["active", "In progress"],
+                      ["ready", "Ready"],
+                    ].map(([value, label]) => (
+                      <button
+                        key={value}
+                        onClick={() => setFilter(value)}
+                        aria-pressed={filter === value}
+                        className={`filter-button ${filter === value ? "filter-active" : ""}`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  <label className="sr-only" htmlFor="meeting-search">
+                    Search meeting titles
+                  </label>
+                  <input
+                    id="meeting-search"
+                    className="field max-w-xs"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="Search your meetings…"
+                    type="search"
+                  />
+                </div>
+                <div className="surface-card overflow-hidden">
+                  <div className="library-heading">
+                    <span>MEETING</span>
+                    <span>STATUS</span>
+                    <span className="hidden lg:block">DURATION</span>
+                    <span />
+                  </div>
+                  {loading ? (
+                    <div className="empty-state" role="status">
+                      Loading your meetings…
+                    </div>
+                  ) : visible.length ? (
+                    visible.map((m) => (
+                      <Link
+                        href={`/workspace?meeting=${m.id}`}
+                        key={m.id}
+                        className="meeting-row"
+                      >
+                        <span className="flex min-w-0 items-center gap-4">
+                          <span className="meeting-icon" aria-hidden="true">
+                            ▷
+                          </span>
+                          <span className="min-w-0">
+                            <strong className="block truncate text-sm font-medium">
+                              {m.title}
+                            </strong>
+                            <span className="mt-1.5 block text-xs text-muted">
+                              {date(m.created_at)} ·{" "}
+                              {m.meeting_url ? "Google Meet" : "Demo meeting"}
+                            </span>
+                            <span className="mt-1.5 block text-[11px] text-muted">
+                              {m.capture_mode === "demo"
+                                ? "Simulated capture · no recording"
+                                : m.recording_ready
+                                  ? `Transcript: ${m.transcription_state} · Summary: ${m.summary_state}`
+                                  : "Ready to send your demo notetaker"}
+                            </span>
+                          </span>
+                        </span>
+                        <StatusBadge meeting={m} />
+                        <span className="hidden text-xs text-muted lg:block">
+                          {m.duration_seconds === null
+                            ? "—"
+                            : `${Math.floor(m.duration_seconds / 60)}:${Math.floor(
+                                m.duration_seconds % 60,
+                              )
+                                .toString()
+                                .padStart(2, "0")}`}
+                        </span>
+                        <span className="text-muted" aria-hidden="true">
+                          →
+                        </span>
+                      </Link>
+                    ))
+                  ) : (
+                    <div className="empty-state">
+                      <span className="empty-icon" aria-hidden="true">
+                        ▤
+                      </span>
+                      <h2 className="mt-5 text-lg font-semibold text-ink">
+                        {meetings.length
+                          ? "No matching meetings"
+                          : "Make room for the conversation"}
+                      </h2>
+                      <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-muted">
+                        {meetings.length
+                          ? "Try another title or change the status filter."
+                          : "Start with a meeting link or a demo. Your recordings, transcripts and notes will live here."}
+                      </p>
+                      {!meetings.length && (
+                        <Button
+                          className="mt-6"
+                          onClick={() => setShowCreate(true)}
+                        >
+                          Create your first meeting
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <p className="mt-4 text-xs text-muted">
+                  Showing {visible.length} of {meetings.length} recent meetings
+                  · Only you can access this library.
+                </p>
+              </section>
+            </>
+          )}
+        </main>
+      </div>
     </div>
   );
 }

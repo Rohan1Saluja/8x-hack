@@ -3,8 +3,8 @@ from uuid import UUID
 from fastapi import APIRouter, Depends
 
 from app.routers.dependencies import current_user
-from app.schemas import MeetingCreate, MeetingOut
-from app.services import meeting_service
+from app.schemas import LifecycleAction, MeetingCreate, MeetingOut
+from app.services import lifecycle_service, meeting_service
 
 router = APIRouter()
 
@@ -37,3 +37,28 @@ def get_playback(meeting_id: UUID, owner=Depends(current_user)):
 @router.delete("/meetings/{meeting_id}", status_code=204)
 def delete_meeting(meeting_id: UUID, owner=Depends(current_user)):
     return meeting_service.delete_meeting(meeting_id, owner)
+
+
+@router.post("/meetings/{meeting_id}/send", response_model=MeetingOut)
+def send_notetaker(meeting_id: UUID, body: LifecycleAction, owner=Depends(current_user)):
+    return lifecycle_service.transition(meeting_id, owner, "send", body)
+
+
+@router.post("/meetings/{meeting_id}/admit", response_model=MeetingOut)
+def admit_notetaker(meeting_id: UUID, body: LifecycleAction, owner=Depends(current_user)):
+    return lifecycle_service.transition(meeting_id, owner, "admit", body)
+
+
+@router.post("/meetings/{meeting_id}/advance", response_model=MeetingOut)
+def advance_notetaker(meeting_id: UUID, body: LifecycleAction, owner=Depends(current_user)):
+    return lifecycle_service.transition(meeting_id, owner, "advance", body)
+
+
+@router.post("/meetings/{meeting_id}/stop", response_model=MeetingOut)
+def stop_notetaker(meeting_id: UUID, body: LifecycleAction, owner=Depends(current_user)):
+    return lifecycle_service.transition(meeting_id, owner, "stop", body)
+
+
+@router.post("/meetings/{meeting_id}/retry-capture", response_model=MeetingOut)
+def retry_notetaker(meeting_id: UUID, body: LifecycleAction, owner=Depends(current_user)):
+    return lifecycle_service.transition(meeting_id, owner, "retry-capture", body)

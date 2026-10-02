@@ -22,7 +22,7 @@ docker compose up -d --wait db
 
 The database is available only on `127.0.0.1:5433`, with database/user `eightx` and the public development-only password `eightx_local_dev`. Set `DATABASE_URL` in your backend local environment to `postgresql://eightx:eightx_local_dev@127.0.0.1:5433/eightx?sslmode=disable` and keep `APP_ENV=development`. These credentials must never be used for a hosted database. Port 5433 avoids the usual local PostgreSQL port 5432; change the Compose host port and your URL together if it is already occupied.
 
-On the first start with an empty volume, Docker creates the compatibility roles and runs both app migrations in order. No Supabase database connection is needed for local app data. Check the initialized tables with:
+On the first start with an empty volume, Docker creates the compatibility roles and runs all app migrations in order. No Supabase database connection is needed for local app data. Check the initialized tables with:
 
 ```sh
 docker compose exec db psql -U eightx -d eightx -c "select table_name from information_schema.tables where table_schema = 'app' order by table_name;"
@@ -34,7 +34,7 @@ Create one **private** Vercel Blob store in the Vercel dashboard (Storage → Cr
 
 No Supabase Storage bucket, storage service-role key, filesystem storage mode, or local recording directory is needed. If configured previously, remove `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `RECORDING_BUCKET`, `RECORDING_STORAGE`, `LOCAL_RECORDINGS_DIR`, and `LOCAL_STORAGE_BASE_URL`. Keep the Supabase connection string only for the production database.
 
-For a fresh production Supabase database, run the two files in `supabase/migrations` in filename order. Existing databases need no new migration for the Blob switch. Never rerun already-applied migrations. Old Supabase/local-file recording references are not automatically transferred to Blob; use a new meeting for the first Blob test.
+For a fresh production Supabase database, run all files in `supabase/migrations` in filename order. Existing databases need `202610030001_demo_lifecycle.sql` for the demo lifecycle checkpoint. Never rerun already-applied migrations. Old Supabase/local-file recording references are not automatically transferred to Blob; use a new meeting for the first Blob test.
 
 Uploads use unique paths under `development/` or `production/` in that single store. Delete test meetings in the app to remove their development blobs, or clean up `development/` in the Blob dashboard when finished. Sharing the store does not synchronize the two databases: each database still needs its own meeting metadata. If production recording references are copied into a local database, playback/transcription can reuse those files, and deleting the local meeting leaves production blobs intact. Do not delete a production blob while either database still needs it.
 
@@ -98,7 +98,7 @@ Backend tests create a disposable local PostgreSQL server via the **development-
 
 Implemented foundations: protected workspace, server-side token forwarding, public health, authenticated identity, owner-scoped meeting creation/library/reads/deletion, idempotent meeting creation, and authorization before signed playback.
 
-Real login/logout, database connectivity and private Blob playback require your configuration. Recall free account balance, no-payment-method eligibility, operation charges, provider region, and an authorized webhook URL remain unverified. Capture is intentionally unavailable, and no browser recording fallback has been introduced.
+Real login/logout, database connectivity and private Blob playback require your configuration. Live provider capture is not integrated. The explicitly labeled demo notetaker now supports a persisted lifecycle without contacting a provider or creating recordings/evidence. See [the checkpoint guide](docs/meeting-lifecycle-checkpoint.md).
 
 ## References checked on 2026-10-01
 
@@ -128,11 +128,11 @@ Keep these values in `backend/.env.local` locally or the backend Vercel project'
 
 From `backend`, `uv run python -m app.admin verify-models` performs a model-list read with your configured key. It does not prove billing eligibility or run inference. After checking the actual Free plan and remaining quotas in the Groq dashboard, the operator can run `uv run python -m app.admin approve-groq-budget --help` to record a conservative budget. Required arguments are `--audio-seconds`, `--text-requests`, `--text-tokens`, `--hours` (1–24), `--note` (verification facts, no credentials), and `--confirm-free-no-payment`. Use remaining allowances from the account, leave headroom, and avoid using the same allowance in other apps. No default grant is seeded. There is no public budget-approval endpoint.
 
-The database reservation is an application cap, not a live Groq balance API. Reservations are retained even on errors. A human rechecks dashboard quotas before granting more capacity; budgets never replenish automatically. Provider 429 responses enforce actual account rate limits. The preparation UI shows configuration/quota failures and uses one explicit request for each transcription, summary or question. Three attempts per operation, 20 distinct questions per meeting, one concurrent provider operation, and three-minute/24-MB recordings are the fixed preparation limits. The capture adapter remains blocked and cannot create recordings yet.
+The database reservation is an application cap, not a live Groq balance API. Reservations are retained even on errors. A human rechecks dashboard quotas before granting more capacity; budgets never replenish automatically. Provider 429 responses enforce actual account rate limits. The preparation UI shows configuration/quota failures and uses one explicit request for each transcription, summary or question. Three attempts per operation, 20 distinct questions per meeting, one concurrent provider operation, and three-minute/24-MB recordings are the fixed preparation limits. The demo capture adapter previews lifecycle stages only; it cannot create recordings.
 
 ## Processing and evidence
 
-Apply both migrations. Generate a transcript before a summary; either can be resumed independently. Calls persist job status before inference and results in a fenced transaction. After an interrupted request, refresh the meeting; after its five-minute lease expires, use **Recover interrupted work**, then retry. Each retry uses another conservative reservation. Do not grant yourself new quota to work around a provider rejection without verifying the real Free allowance.
+Apply all migrations in filename order. Generate a transcript before a summary; either can be resumed independently. Calls persist job status before inference and results in a fenced transaction. After an interrupted request, refresh the meeting; after its five-minute lease expires, use **Recover interrupted work**, then retry. Each retry uses another conservative reservation. Do not grant yourself new quota to work around a provider rejection without verifying the real Free allowance.
 
 Summary actions are editable independently; their original source links remain attached. Q&A only uses stored segments from the current meeting. Click a transcript timestamp or source to seek the stored recording. An expired playback URL can be refreshed after authorization. These player interactions still require real-media browser verification.
 

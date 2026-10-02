@@ -8,7 +8,7 @@ export default async function Home() {
   return (
     <main className="min-h-screen px-[6vw] py-9 max-[650px]:p-6">
       <a
-        className="flex touch-manipulation items-center gap-3 text-[32px] font-extrabold tracking-[-2px] text-purple no-underline focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[#b3aaff]"
+        className="flex touch-manipulation items-center gap-3 text-[32px] font-extrabold tracking-[-2px] text-purple no-underline focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[#00bff3]"
         href="/"
       >
         8x
@@ -16,9 +16,9 @@ export default async function Home() {
           meeting workspace
         </span>
       </a>
-      <section className="mx-auto mt-[10vh] max-w-[660px] rounded-2xl border border-line bg-white p-12 shadow-[0_12px_50px_#22243006] max-[650px]:p-[26px]">
+      <section className="mx-auto mt-[10vh] max-w-[660px] rounded-2xl border border-line bg-surface p-12 shadow-[0_12px_50px_#22243006] max-[650px]:p-[26px]">
         <p className="mb-4 text-[10px] font-bold tracking-[1.7px] text-muted">
-          PREPARATION WORKSPACE
+          YOUR MEETING WORKSPACE
         </p>
         <h1 className="mb-3 text-[40px] leading-[1.2] font-semibold tracking-[-1px] max-[650px]:text-[32px]">
           Stay in the conversation.
@@ -28,7 +28,7 @@ export default async function Home() {
         </p>
         {missing.length ? (
           <div
-            className="mb-6 rounded-lg border border-[#ded8fa] bg-[#f4f1fd] px-[18px] py-4 text-[#504a77]"
+            className="mb-6 rounded-lg border border-[#33464e] bg-[#1b282e] px-[18px] py-4 text-[#b8d5df]"
             role="status"
           >
             <strong className="text-[13px]">Authentication setup needed</strong>
@@ -42,7 +42,7 @@ export default async function Home() {
           </div>
         ) : (
           <a
-            className="inline-flex cursor-pointer touch-manipulation items-center justify-center gap-6 rounded-lg border border-transparent bg-purple px-[18px] py-[11px] font-semibold text-white no-underline hover:brightness-94 focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[#b3aaff]"
+            className="inline-flex cursor-pointer touch-manipulation items-center justify-center gap-6 rounded-lg border border-transparent bg-purple px-[18px] py-[11px] font-semibold text-[#071b22] no-underline hover:brightness-94 focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[#00bff3]"
             href="/auth/login?returnTo=%2Fworkspace"
           >
             Sign in to your workspace <span aria-hidden>→</span>
@@ -54,8 +54,8 @@ export default async function Home() {
           <span>03 · Find the moment</span>
         </div>
         <p className="mb-3 text-xs text-muted">
-          Google Meet capture is pending free account verification. No bot is
-          sent from this screen.
+          Demo capture is available. No live bot joins your calls; recordings
+          and AI notes require real meeting evidence.
         </p>
       </section>
     </main>
