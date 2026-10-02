@@ -121,18 +121,73 @@ exchange; no full-session completeness claim is made. A response observation tim
 can be later than the next prompt's submission time; do not invent delivery times
 or alter this committed pair to force chronological alignment.
 
-## Canary Session 2 — PENDING
+## Canary Session 2 — PASSED (manual prompt/response round-trip)
 
-Expected real user prompt: `CAPTURE TEST 2 — 8x assignment, Rohan Saluja`
+- Fresh-conversation condition: explicitly confirmed in the actual user prompt,
+  "This is a fresh conversation." This differs from Canary 1's conversation;
+  UUID uniqueness alone is not used as proof.
+- Conversation/wrapper ID: `7b7f7314-a458-4cde-957d-c59c2ae31d66`.
+- Confirmed model: `GPT-6 ASTRA`, normalized to the recorder's project label from
+  the user's `GPT-6 Astra (High)` confirmation. Runtime routing was not independently
+  verified; thinking effort is not a separate metadata field.
+- Prompt timestamp: `2026-10-02T21:22:39Z`, converted from supplied message
+  submission time `2026-10-03T02:52:39+05:30`.
+- Response timestamp: `2026-10-02T21:25:33Z`, the UTC observation/copy time
+  during finalization, not a claimed delivery timestamp.
+- Committed log path:
+  `.agent-logs/2026-10-02_21-22-39_7b7f7314-a458-4cde-957d-c59c2ae31d66.md`.
+- Evidence commit: `2b997871914a3297a2a52ef8e65bb7bb715a757f`.
+- Result: PASSED. The complete user-authored prompt and already delivered final
+  response were recorded, committed and read back with exact text equality.
+- Checks: recorder format and history/ignore validation passed for both session logs
+  against the previous branch head's exact Git tree
+  `960575da41cca91b91cb2c420adeed790eac679d`.
+  Existing Canary 1 bytes were unchanged, including after remote read-back.
+  Secret and staged-whitespace checks passed on the local capture/configuration
+  snapshot; this was not a full product or repository-wide build/security audit.
+- Direct read-only clone failed again because the sandbox proxy was unreachable.
+  Connector reads/writes succeeded. Exact remote tree objects and relevant blobs
+  were reconstructed locally and verified by their Git SHAs for the history check.
+  No recorder or product code changed; no synthetic canary or hook was introduced.
 
-- Must be sent in a completely fresh ASTRA conversation; UUID uniqueness alone does
-  not establish this. The user must confirm the fresh conversation.
-- Conversation/wrapper ID: pending actual session.
-- Confirmed actual model and timing basis: pending.
-- Committed log path: pending.
-- Raw PROMPT and RESPONSE entries: absent until the actual exchange is delivered,
-  persisted and verified byte-for-byte against the visible conversation.
-- Result: NOT RUN.
+Raw completed PROMPT/RESPONSE entries, copied unchanged from the committed log:
 
-After each real canary, append the two raw entries here unchanged, with its committed
-log path and verification result. Do not replace pending fields with invented evidence.
+````text
+[LOG_ENTRY type=PROMPT num=1 session=7b7f7314]
+timestamp: 2026-10-02T21:22:39Z
+model: GPT-6 ASTRA
+
+Use Rohan1Saluja/8x-hack, branch chore/agent-capture.
+Read AGENTS.md and docs/agent-capture.md.
+This is a fresh conversation. Selected model: GPT-6 Astra (High).
+
+CAPTURE TEST 2 — 8x assignment, Rohan Saluja
+
+[LOG_ENTRY type=RESPONSE num=1 session=7b7f7314]
+timestamp: 2026-10-02T21:25:33Z
+model: GPT-6 ASTRA
+
+Canary 2 received in this fresh conversation. Model: **GPT-6 ASTRA**, confirmed by you; High thinking effort.
+
+Read `AGENTS.md`, `docs/agent-capture.md`, and `CAPTURE-TEST.md`.
+
+- Session ID: `7b7f7314-a458-4cde-957d-c59c2ae31d66`
+- Prompt timestamp: `2026-10-02T21:22:39Z`
+- Status: **finalization pending**
+
+The repository protocol requires this response to be delivered before logging it. Send **`Finalize Canary 2`** next; I’ll commit the full verbatim prompt/response pair and verify it before marking the canary passed.
+````
+
+The current close-out user message was `` `Finalize Canary 2` `` at
+`2026-10-02T21:25:23Z` (supplied submission time). Its final response is not yet
+delivered while this evidence is written, so that exchange is not part of the
+completed canary pair. Operator close-out remains necessary for the final exchange.
+The response observation time above follows the close-out prompt's submission;
+this is disclosed instead of inventing an earlier response delivery timestamp.
+
+## Current acceptance status
+
+Both required canary pairs have passed the manual round-trip in separate conversations.
+This does not establish automatic capture, complete session coverage or assessment
+acceptance. Capture began after the timer started; the bootstrap, unanswered prompt
+and close-out gaps documented above remain. No historical logs were fabricated.
