@@ -1,7 +1,7 @@
 export type Meeting = {
   id: string;
   title: string;
-  meeting_url: string;
+  meeting_url: string | null;
   created_at: string;
   capture_state:
     | "not_started"
@@ -14,6 +14,22 @@ export type Meeting = {
   summary_state: "pending" | "running" | "ready" | "failed";
   failure_code: string | null;
   recording_ready: boolean;
+  duration_seconds: number | null;
+  lifecycle_state:
+    | "not_started"
+    | "joining"
+    | "awaiting_admission"
+    | "recording"
+    | "recorded"
+    | "transcribing"
+    | "transcribed"
+    | "summarizing"
+    | "ready"
+    | "failed";
+  lifecycle_version: number;
+  lifecycle_updated_at: string | null;
+  consent_confirmed_at: string | null;
+  capture_mode: "demo" | "manual";
 };
 
 export type Segment = {

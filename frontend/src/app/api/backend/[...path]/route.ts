@@ -17,7 +17,7 @@ const routes: Record<string, RegExp[]> = {
   POST: [
     /^meetings$/,
     new RegExp(
-      `^meetings/${uuid}/(send|stop|transcribe|summarize|questions|recover)$`,
+      `^meetings/${uuid}/(send|admit|advance|stop|retry-capture|transcribe|summarize|questions|recover)$`,
     ),
   ],
   PATCH: [new RegExp(`^meetings/${uuid}/actions/${uuid}$`)],

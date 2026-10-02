@@ -52,22 +52,13 @@ def integrations(owner):
         budget = evidence_repository.get_budget_status(conn)
     return {
         "capture": {
-            "available": False,
-            "code": "capture_verification_required",
-            "message": "Recall account free allowance, no-payment terms, retention charges and webhook access must be verified before the capture adapter is enabled.",
+            "available": True,
+            "mode": "demo",
+            "code": "demo_capture",
+            "message": "Simulated notetaker only. No live bot, media capture or generated evidence.",
         },
         "ai": {"configured": bool(settings().groq_api_key.get_secret_value()), "budget": budget},
     }
-
-
-def blocked_capture(meeting_id: UUID, owner):
-    with db.connection() as conn:
-        meeting_service.require_owned(conn, meeting_id, owner)
-    fail(
-        503,
-        "capture_verification_required",
-        "Capture is unavailable until Recall free account access and the webhook endpoint are verified. No bot request was sent.",
-    )
 
 
 def get_evidence(meeting_id: UUID, owner):

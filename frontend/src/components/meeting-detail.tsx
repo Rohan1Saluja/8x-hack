@@ -1,5 +1,9 @@
 "use client";
 
+import {
+  LifecycleControls,
+  StatusBadge,
+} from "@/components/lifecycle-controls";
 import { Button } from "@/components/ui/button";
 
 import {
@@ -37,6 +41,7 @@ export function MeetingDetail({
   const [tab, setTab] = useState<"summary" | "transcript" | "questions">(
     "summary",
   );
+  const [transcriptQuery, setTranscriptQuery] = useState("");
   const [playback, setPlayback] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleted, setDeleted] = useState(false);
@@ -129,7 +134,7 @@ export function MeetingDetail({
           const segment = evidence?.segments.find((s) => s.id === sourceId);
           return segment ? (
             <button
-              className="inline-flex cursor-pointer touch-manipulation items-center justify-center rounded border-0 bg-[#eeeafa] px-[7px] py-[3px] text-[10px] font-semibold text-purple focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[#b3aaff] enabled:hover:brightness-94 disabled:cursor-not-allowed disabled:opacity-48"
+              className="inline-flex cursor-pointer touch-manipulation items-center justify-center rounded border-0 bg-[#163640] px-[7px] py-[3px] text-[10px] font-semibold text-purple focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[#00bff3] enabled:hover:brightness-94 disabled:cursor-not-allowed disabled:opacity-48"
               type="button"
               key={sourceId}
               onClick={() => seek(sourceId)}
@@ -218,366 +223,457 @@ export function MeetingDetail({
       </div>
     );
   return (
-    <div className="p-[22px]">
-      <p className="mb-3 text-xs [overflow-wrap:anywhere] text-muted">
-        {meeting.meeting_url}
-      </p>
-      <div className="my-5 flex flex-wrap gap-3.5 text-[10px] text-muted">
-        <span>
-          Capture{" "}
-          <strong className="block text-xs font-semibold text-ink">
-            {meeting.capture_state.replaceAll("_", " ")}
-          </strong>
-        </span>
-        <span>
-          Transcript{" "}
-          <strong className="block text-xs font-semibold text-ink">
-            {meeting.transcription_state}
-          </strong>
-        </span>
-        <span>
-          Summary{" "}
-          <strong className="block text-xs font-semibold text-ink">
-            {meeting.summary_state}
-          </strong>
-        </span>
-      </div>
-      <div className="my-[15px] flex flex-wrap gap-2">
-        <Button size="compact" disabled>
-          Send notetaker
-        </Button>
-        <Button variant="secondary" size="compact" disabled>
-          Stop bot
-        </Button>
-        <Button
-          variant="secondary"
-          size="compact"
-          disabled={!!busy}
-          onClick={() => void refresh().catch((e) => setError(e.message))}
-        >
-          Refresh details
-        </Button>
-      </div>
-      <p className="mb-3 text-xs [overflow-wrap:anywhere] text-muted">
-        Capture is pending free account verification. Before recording, notify
-        all participants and admit the clearly named notetaker.
-      </p>
-      {error && (
-        <p
-          className="mb-3 rounded-[7px] border border-[#f3c7c7] bg-[#fff1f1] p-3 text-[#8f2525]"
-          role="alert"
-        >
-          {error}
-        </p>
-      )}
-      {meeting.failure_code && (
-        <p className="mb-3 rounded-[7px] border border-[#f3c7c7] bg-[#fff1f1] p-3 text-[#8f2525]">
-          Last processing failure: {meeting.failure_code.replaceAll("_", " ")}.
-          Completed stages are saved.
-        </p>
-      )}
-      {meeting.recording_ready && (
-        <div>
-          {playback ? (
-            <video
-              className="block max-h-[300px] w-full rounded-lg bg-[#191822]"
-              ref={player}
-              src={playback}
-              controls
-              preload="metadata"
-              onLoadedMetadata={() => {
-                if (player.current && pendingSeek.current !== null) {
-                  player.current.currentTime = pendingSeek.current;
-                  pendingSeek.current = null;
-                }
-              }}
-              onError={() =>
-                setError(
-                  "Playback link may have expired. Choose Refresh playback link.",
-                )
-              }
-            />
-          ) : (
-            <Button
-              variant="secondary"
-              onClick={() => void authorizePlayback()}
-            >
-              Load private recording
-            </Button>
-          )}
-          {playback && (
-            <Button variant="text" onClick={() => void authorizePlayback()}>
-              Refresh playback link
-            </Button>
-          )}
+    <div className="detail-layout">
+      <div className="detail-main">
+        <LifecycleControls
+          meeting={meeting}
+          onChange={(next) => {
+            setMeeting((current) =>
+              next.lifecycle_version >= current.lifecycle_version
+                ? next
+                : current,
+            );
+          }}
+        />
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+          <StatusBadge meeting={meeting} />
+          <Button
+            variant="text"
+            disabled={!!busy}
+            onClick={() => void refresh().catch((e) => setError(e.message))}
+          >
+            Refresh details
+          </Button>
         </div>
-      )}
-      <div className="my-[15px] flex flex-wrap gap-2">
-        <Button
-          variant="secondary"
-          size="compact"
-          disabled={
-            !!busy ||
-            !meeting.recording_ready ||
-            meeting.transcription_state === "ready" ||
-            (running && !evidence?.jobs.some((j) => j.interrupted))
-          }
-          onClick={() => void action("transcribe")}
-        >
-          {busy === "transcribe" ? "Transcribing…" : "Generate transcript"}
-        </Button>
-        <Button
-          variant="secondary"
-          size="compact"
-          disabled={
-            !!busy ||
-            meeting.transcription_state !== "ready" ||
-            meeting.summary_state === "ready" ||
-            (running && !evidence?.jobs.some((j) => j.interrupted))
-          }
-          onClick={() => void action("summarize")}
-        >
-          {busy === "summarize" ? "Summarizing…" : "Generate summary"}
-        </Button>
-        {evidence?.jobs.some((j) => j.interrupted) && (
+        {error && (
+          <p
+            className="mb-3 rounded-[7px] border border-[#704349] bg-[#372326] p-3 text-[#ffc5ca]"
+            role="alert"
+          >
+            {error}
+          </p>
+        )}
+        {meeting.failure_code && (
+          <p className="mb-3 rounded-[7px] border border-[#704349] bg-[#372326] p-3 text-[#ffc5ca]">
+            Last processing failure: {meeting.failure_code.replaceAll("_", " ")}
+            . Completed stages are saved.
+          </p>
+        )}
+        {!meeting.recording_ready && (
+          <div className="player-empty">
+            <span
+              className="mx-auto mb-4 grid size-14 place-items-center rounded-full bg-[#24292f] text-2xl text-cyan-400"
+              aria-hidden="true"
+            >
+              ▷
+            </span>
+            <h2 className="text-base font-medium">
+              {meeting.lifecycle_state === "recording"
+                ? "Demo recording in progress"
+                : "Your recording will appear here"}
+            </h2>
+            <p className="mx-auto mt-2 max-w-sm text-xs leading-relaxed text-muted">
+              {meeting.capture_mode === "demo"
+                ? "This walkthrough simulates capture without creating media. No recording, timestamps or speaker identities are invented."
+                : "Private playback becomes available after a real recording is attached."}
+            </p>
+          </div>
+        )}
+        {meeting.recording_ready && (
+          <div>
+            {playback ? (
+              <video
+                className="block max-h-[300px] w-full rounded-lg bg-[#191822]"
+                ref={player}
+                src={playback}
+                controls
+                preload="metadata"
+                onLoadedMetadata={() => {
+                  if (player.current && pendingSeek.current !== null) {
+                    player.current.currentTime = pendingSeek.current;
+                    pendingSeek.current = null;
+                  }
+                }}
+                onError={() =>
+                  setError(
+                    "Playback link may have expired. Choose Refresh playback link.",
+                  )
+                }
+              />
+            ) : (
+              <Button
+                variant="secondary"
+                onClick={() => void authorizePlayback()}
+              >
+                Load private recording
+              </Button>
+            )}
+            {playback && (
+              <Button variant="text" onClick={() => void authorizePlayback()}>
+                Refresh playback link
+              </Button>
+            )}
+          </div>
+        )}
+        <div className="my-[15px] flex flex-wrap gap-2">
           <Button
             variant="secondary"
             size="compact"
-            disabled={!!busy}
-            onClick={() => void action("recover")}
+            disabled={
+              !!busy ||
+              !meeting.recording_ready ||
+              meeting.transcription_state === "ready" ||
+              (running && !evidence?.jobs.some((j) => j.interrupted))
+            }
+            onClick={() => void action("transcribe")}
           >
-            Recover interrupted work
+            {busy === "transcribe" ? "Transcribing…" : "Generate transcript"}
           </Button>
-        )}
-      </div>
-      {evidence?.jobs.length ? (
-        <p className="mb-3 text-xs [overflow-wrap:anywhere] text-muted">
-          {evidence.jobs
-            .filter((j) => j.stage !== "question")
-            .map((j) => `${j.stage}: ${j.attempts}/3 attempts`)
-            .join(" · ")}
-        </p>
-      ) : null}
-      <div
-        className="my-[25px] flex gap-5 border-b border-line"
-        role="tablist"
-        aria-label="Meeting content"
-      >
-        {(["summary", "transcript", "questions"] as const).map((t) => (
-          <button
-            role="tab"
-            aria-selected={tab === t}
-            aria-controls={`panel-${t}`}
-            key={t}
-            className={`inline-flex cursor-pointer touch-manipulation items-center justify-center rounded-none border-x-0 border-t-0 border-b-2 bg-transparent px-0 py-2.5 text-xs font-semibold capitalize focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[#b3aaff] enabled:hover:brightness-94 disabled:cursor-not-allowed disabled:opacity-48 ${tab === t ? "border-purple text-purple" : "border-transparent text-muted"}`}
-            onClick={() => setTab(t)}
+          <Button
+            variant="secondary"
+            size="compact"
+            disabled={
+              !!busy ||
+              meeting.transcription_state !== "ready" ||
+              meeting.summary_state === "ready" ||
+              (running && !evidence?.jobs.some((j) => j.interrupted))
+            }
+            onClick={() => void action("summarize")}
           >
-            {t === "questions" ? "Ask meeting" : t}
-          </button>
-        ))}
-      </div>
-      {!evidence ? (
-        <p className="mb-3" role="status">
-          Loading meeting evidence…
-        </p>
-      ) : (
-        <div role="tabpanel" id={`panel-${tab}`}>
-          {tab === "summary" &&
-            (evidence.summary ? (
-              <>
-                <h3 className="mb-2 text-base font-semibold">Overview</h3>
-                <ul className="m-0 mb-6 list-none p-0">
-                  {fact(evidence.summary.overview, "overview")}
-                </ul>
-                <h3 className="mb-2 text-base font-semibold">Topics</h3>
-                <ul className="m-0 mb-6 list-none p-0">
-                  {evidence.summary.topics.map(fact)}
-                </ul>
-                <h3 className="mb-2 text-base font-semibold">Decisions</h3>
-                {evidence.summary.decisions.length ? (
-                  <ul className="m-0 mb-6 list-none p-0">
-                    {evidence.summary.decisions.map(fact)}
-                  </ul>
-                ) : (
-                  <p className="mb-3 text-xs [overflow-wrap:anywhere] text-muted">
-                    No explicit decisions found.
-                  </p>
-                )}
-                <h3 className="mb-2 text-base font-semibold">Action items</h3>
-                {evidence.actions.length ? (
-                  evidence.actions.map((item) => (
-                    <form
-                      className="mb-3 rounded-lg border border-line p-[15px]"
-                      key={item.id}
-                      onSubmit={(e) => void saveAction(item, e)}
-                    >
-                      <label className="block text-[11px] text-muted">
-                        Task
-                        <input
-                          className="w-full touch-manipulation rounded-[7px] border border-[#d9dbe5] bg-white p-[7px] text-xs text-ink placeholder:text-[#9295a3] focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[#b3aaff]"
-                          name="text"
-                          required
-                          maxLength={1000}
-                          defaultValue={item.text}
-                        />
-                      </label>
-                      <div className="my-2.5 grid grid-cols-2 gap-2.5">
-                        <label className="block text-[11px] text-muted">
-                          Owner
-                          <input
-                            className="w-full touch-manipulation rounded-[7px] border border-[#d9dbe5] bg-white p-[7px] text-xs text-ink placeholder:text-[#9295a3] focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[#b3aaff]"
-                            name="owner"
-                            maxLength={160}
-                            defaultValue={item.owner || ""}
-                            placeholder="Not stated"
-                          />
-                        </label>
-                        <label className="block text-[11px] text-muted">
-                          Deadline as stated
-                          <input
-                            className="w-full touch-manipulation rounded-[7px] border border-[#d9dbe5] bg-white p-[7px] text-xs text-ink placeholder:text-[#9295a3] focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[#b3aaff]"
-                            name="due_date"
-                            maxLength={160}
-                            defaultValue={item.due_date || ""}
-                            placeholder="Not stated"
-                          />
-                        </label>
-                      </div>
-                      <label className="mb-2 flex items-center gap-2 text-[11px] text-muted">
-                        <input
-                          className="w-auto touch-manipulation rounded-[7px] border border-[#d9dbe5] bg-white p-[7px] text-xs text-ink accent-purple placeholder:text-[#9295a3] focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[#b3aaff]"
-                          type="checkbox"
-                          name="completed"
-                          defaultChecked={item.completed}
-                        />
-                        Completed
-                      </label>
-                      {sources(item.source_segment_ids)}
-                      <div className="mt-2.5">
-                        <Button
-                          variant="secondary"
-                          size="small"
-                          disabled={!!busy}
-                          type="submit"
-                        >
-                          Save action
-                        </Button>
-                      </div>
-                    </form>
-                  ))
-                ) : (
-                  <p className="mb-3 text-xs [overflow-wrap:anywhere] text-muted">
-                    No explicit action items found.
-                  </p>
-                )}
-              </>
-            ) : (
-              <p className="mb-3 px-7 py-[58px] text-center text-muted">
-                Your summary will appear after a recording is transcribed and
-                summarized.
-              </p>
-            ))}
-          {tab === "transcript" &&
-            (evidence.segments.length ? (
-              <ol className="m-0 list-none p-0">
-                {evidence.segments.map((s) => (
-                  <li className="mb-4 flex items-start gap-3" key={s.id}>
-                    <button
-                      className="mt-[3px] inline-flex shrink-0 cursor-pointer touch-manipulation items-center justify-center rounded border-0 bg-[#eeeafa] px-[7px] py-[3px] text-[10px] font-semibold text-purple focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[#b3aaff] enabled:hover:brightness-94 disabled:cursor-not-allowed disabled:opacity-48"
-                      onClick={() => seek(s.id)}
-                      aria-label={`Play transcript at ${time(s.start_seconds)}`}
-                    >
-                      {time(s.start_seconds)}
-                    </button>
-                    <div>
-                      {s.speaker && <strong>{s.speaker}</strong>}
-                      <p className="m-0 text-xs">{s.text}</p>
-                    </div>
-                  </li>
-                ))}
-              </ol>
-            ) : (
-              <p className="mb-3 px-7 py-[58px] text-center text-muted">
-                No transcript yet. Speaker identities will remain blank unless
-                verified.
-              </p>
-            ))}
-          {tab === "questions" && (
-            <>
-              <p className="mb-3 text-xs [overflow-wrap:anywhere] text-muted">
-                Answers use this meeting only. Sources open the original
-                recording moment.
-              </p>
-              {evidence.questions.map((q) => (
-                <article
-                  className="mb-5 border-b border-line py-[15px]"
-                  key={q.id}
-                >
-                  <h3 className="mb-2 text-[13px] font-semibold">
-                    {q.question}
-                  </h3>
-                  <p className="mb-3 text-xs">{q.answer.answer}</p>
-                  {sources(q.answer.source_segment_ids)}
-                </article>
-              ))}
-              <form onSubmit={(e) => void ask(e)}>
-                <label className="block text-[11px] text-muted">
-                  Ask about this meeting
-                  <textarea
-                    className="mt-2 mb-3 block min-h-[90px] w-full touch-manipulation resize-y rounded-[7px] border border-[#d9dbe5] bg-white px-3 py-[11px] text-ink placeholder:text-[#9295a3] focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[#b3aaff]"
-                    name="question"
-                    required
-                    maxLength={2000}
-                    onChange={() => {
-                      questionId.current = null;
-                    }}
-                    placeholder="What did we decide, and who is doing what?"
-                  />
-                </label>
-                <Button
-                  disabled={
-                    !!busy || running || meeting.transcription_state !== "ready"
-                  }
-                >
-                  {busy === "question" ? "Finding evidence…" : "Ask meeting"}
-                </Button>
-              </form>
-            </>
+            {busy === "summarize" ? "Summarizing…" : "Generate summary"}
+          </Button>
+          {evidence?.jobs.some((j) => j.interrupted) && (
+            <Button
+              variant="secondary"
+              size="compact"
+              disabled={!!busy}
+              onClick={() => void action("recover")}
+            >
+              Recover interrupted work
+            </Button>
           )}
         </div>
-      )}
-      <div className="mt-[30px] border-t border-line pt-[15px] text-xs">
-        {confirmDelete ? (
-          <>
-            <p className="mb-3">
-              Delete this meeting, its recording, transcript, and notes?
-            </p>
-            <Button
-              className="mr-2 text-[11px]"
-              variant="danger"
-              disabled={!!busy}
-              onClick={() => void remove()}
+        {evidence?.jobs.length ? (
+          <p className="mb-3 text-xs [overflow-wrap:anywhere] text-muted">
+            {evidence.jobs
+              .filter((j) => j.stage !== "question")
+              .map((j) => `${j.stage}: ${j.attempts}/3 attempts`)
+              .join(" · ")}
+          </p>
+        ) : null}
+        <div
+          className="my-[25px] flex gap-5 border-b border-line"
+          role="tablist"
+          aria-label="Meeting content"
+        >
+          {(["summary", "transcript", "questions"] as const).map((t) => (
+            <button
+              role="tab"
+              id={`tab-${t}`}
+              tabIndex={tab === t ? 0 : -1}
+              onKeyDown={(event) => {
+                const tabs = ["summary", "transcript", "questions"] as const;
+                const index = tabs.indexOf(t);
+                const next =
+                  event.key === "ArrowRight"
+                    ? tabs[(index + 1) % 3]
+                    : event.key === "ArrowLeft"
+                      ? tabs[(index + 2) % 3]
+                      : event.key === "Home"
+                        ? tabs[0]
+                        : event.key === "End"
+                          ? tabs[2]
+                          : null;
+                if (next) {
+                  event.preventDefault();
+                  setTab(next);
+                  document.getElementById(`tab-${next}`)?.focus();
+                }
+              }}
+              aria-selected={tab === t}
+              aria-controls={`panel-${t}`}
+              key={t}
+              className={`inline-flex cursor-pointer touch-manipulation items-center justify-center rounded-none border-x-0 border-t-0 border-b-2 bg-transparent px-0 py-2.5 text-xs font-semibold capitalize focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[#00bff3] enabled:hover:brightness-94 disabled:cursor-not-allowed disabled:opacity-48 ${tab === t ? "border-purple text-purple" : "border-transparent text-muted"}`}
+              onClick={() => setTab(t)}
             >
-              Delete meeting
-            </Button>
-            <Button
-              className="mr-2 text-[11px]"
-              variant="secondary"
-              onClick={() => setConfirmDelete(false)}
-            >
-              Cancel
-            </Button>
-          </>
+              {t === "questions" ? "Ask AI" : t}
+            </button>
+          ))}
+        </div>
+        {!evidence ? (
+          <p className="mb-3" role="status">
+            Loading meeting evidence…
+          </p>
         ) : (
-          <Button
-            className="mr-2 text-[11px]"
-            variant="text"
-            onClick={() => setConfirmDelete(true)}
+          <div
+            role="tabpanel"
+            id={`panel-${tab}`}
+            aria-labelledby={`tab-${tab}`}
           >
-            Delete meeting…
-          </Button>
+            {tab === "summary" &&
+              (evidence.summary ? (
+                <>
+                  <h3 className="mb-2 text-base font-semibold">Overview</h3>
+                  <ul className="m-0 mb-6 list-none p-0">
+                    {fact(evidence.summary.overview, "overview")}
+                  </ul>
+                  <h3 className="mb-2 text-base font-semibold">Topics</h3>
+                  <ul className="m-0 mb-6 list-none p-0">
+                    {evidence.summary.topics.map(fact)}
+                  </ul>
+                  <h3 className="mb-2 text-base font-semibold">Decisions</h3>
+                  {evidence.summary.decisions.length ? (
+                    <ul className="m-0 mb-6 list-none p-0">
+                      {evidence.summary.decisions.map(fact)}
+                    </ul>
+                  ) : (
+                    <p className="mb-3 text-xs [overflow-wrap:anywhere] text-muted">
+                      No explicit decisions found.
+                    </p>
+                  )}
+                </>
+              ) : (
+                <p className="mb-3 px-7 py-[58px] text-center text-muted">
+                  Your summary will appear after a recording is transcribed and
+                  summarized.
+                </p>
+              ))}
+            {tab === "transcript" &&
+              (evidence.segments.length ? (
+                <div>
+                  <label className="field-label mb-5">
+                    Search transcript
+                    <input
+                      className="field"
+                      type="search"
+                      value={transcriptQuery}
+                      onChange={(e) => setTranscriptQuery(e.target.value)}
+                      placeholder="Find a moment in this meeting…"
+                    />
+                  </label>
+                  {!evidence.segments.some((s) =>
+                    s.text
+                      .toLowerCase()
+                      .includes(transcriptQuery.toLowerCase()),
+                  ) && (
+                    <p className="text-sm text-muted">
+                      No matching transcript segments.
+                    </p>
+                  )}
+                  <ol className="m-0 list-none p-0">
+                    {evidence.segments
+                      .filter((s) =>
+                        s.text
+                          .toLowerCase()
+                          .includes(transcriptQuery.toLowerCase()),
+                      )
+                      .map((s) => (
+                        <li className="mb-4 flex items-start gap-3" key={s.id}>
+                          <button
+                            className="mt-[3px] inline-flex shrink-0 cursor-pointer touch-manipulation items-center justify-center rounded border-0 bg-[#163640] px-[7px] py-[3px] text-[10px] font-semibold text-purple focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[#00bff3] enabled:hover:brightness-94 disabled:cursor-not-allowed disabled:opacity-48"
+                            onClick={() => seek(s.id)}
+                            aria-label={`Play transcript at ${time(s.start_seconds)}`}
+                          >
+                            {time(s.start_seconds)}
+                          </button>
+                          <div>
+                            {s.speaker && <strong>{s.speaker}</strong>}
+                            <p className="m-0 text-xs">{s.text}</p>
+                          </div>
+                        </li>
+                      ))}
+                  </ol>
+                </div>
+              ) : (
+                <p className="mb-3 px-7 py-[58px] text-center text-muted">
+                  No transcript yet. Speaker identities will remain blank unless
+                  verified.
+                </p>
+              ))}
+            {tab === "questions" && (
+              <>
+                <p className="mb-3 text-xs [overflow-wrap:anywhere] text-muted">
+                  Answers use this meeting only. Sources open the original
+                  recording moment.
+                </p>
+                {evidence.questions.map((q) => (
+                  <article
+                    className="mb-5 border-b border-line py-[15px]"
+                    key={q.id}
+                  >
+                    <h3 className="mb-2 text-[13px] font-semibold">
+                      {q.question}
+                    </h3>
+                    <p className="mb-3 text-xs">{q.answer.answer}</p>
+                    {sources(q.answer.source_segment_ids)}
+                  </article>
+                ))}
+                <form onSubmit={(e) => void ask(e)}>
+                  <label className="block text-[11px] text-muted">
+                    Ask about this meeting
+                    <textarea
+                      className="mt-2 mb-3 block min-h-[90px] w-full touch-manipulation resize-y rounded-[7px] border border-line bg-surface px-3 py-[11px] text-ink placeholder:text-[#9295a3] focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[#00bff3]"
+                      name="question"
+                      required
+                      maxLength={2000}
+                      onChange={() => {
+                        questionId.current = null;
+                      }}
+                      placeholder="What did we decide, and who is doing what?"
+                    />
+                  </label>
+                  <Button
+                    disabled={
+                      !!busy ||
+                      running ||
+                      meeting.transcription_state !== "ready"
+                    }
+                  >
+                    {busy === "question" ? "Finding evidence…" : "Ask meeting"}
+                  </Button>
+                </form>
+              </>
+            )}
+          </div>
         )}
+        <div className="mt-[30px] border-t border-line pt-[15px] text-xs">
+          {confirmDelete ? (
+            <>
+              <p className="mb-3">
+                Delete this meeting, its recording, transcript, and notes?
+              </p>
+              <Button
+                className="mr-2 text-[11px]"
+                variant="danger"
+                disabled={!!busy}
+                onClick={() => void remove()}
+              >
+                Delete meeting
+              </Button>
+              <Button
+                className="mr-2 text-[11px]"
+                variant="secondary"
+                onClick={() => setConfirmDelete(false)}
+              >
+                Cancel
+              </Button>
+            </>
+          ) : (
+            <Button
+              className="mr-2 text-[11px]"
+              variant="text"
+              onClick={() => setConfirmDelete(true)}
+            >
+              Delete meeting…
+            </Button>
+          )}
+        </div>
       </div>
+      <aside className="detail-aside" aria-label="Action items and annotations">
+        <p className="eyebrow mb-5">NEXT STEPS</p>
+        <h2 className="mb-4 text-sm font-semibold">Action items</h2>
+        {!evidence ? (
+          <p className="text-xs text-muted" role="status">
+            Loading action items…
+          </p>
+        ) : evidence.actions.length ? (
+          <div>
+            {evidence.actions.length ? (
+              evidence.actions.map((item) => (
+                <form
+                  className="mb-3 rounded-lg border border-line p-[15px]"
+                  key={item.id}
+                  onSubmit={(e) => void saveAction(item, e)}
+                >
+                  <label className="block text-[11px] text-muted">
+                    Task
+                    <input
+                      className="w-full touch-manipulation rounded-[7px] border border-line bg-surface p-[7px] text-xs text-ink placeholder:text-[#9295a3] focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[#00bff3]"
+                      name="text"
+                      required
+                      maxLength={1000}
+                      defaultValue={item.text}
+                    />
+                  </label>
+                  <div className="my-2.5 grid grid-cols-2 gap-2.5">
+                    <label className="block text-[11px] text-muted">
+                      Owner
+                      <input
+                        className="w-full touch-manipulation rounded-[7px] border border-line bg-surface p-[7px] text-xs text-ink placeholder:text-[#9295a3] focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[#00bff3]"
+                        name="owner"
+                        maxLength={160}
+                        defaultValue={item.owner || ""}
+                        placeholder="Not stated"
+                      />
+                    </label>
+                    <label className="block text-[11px] text-muted">
+                      Deadline as stated
+                      <input
+                        className="w-full touch-manipulation rounded-[7px] border border-line bg-surface p-[7px] text-xs text-ink placeholder:text-[#9295a3] focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[#00bff3]"
+                        name="due_date"
+                        maxLength={160}
+                        defaultValue={item.due_date || ""}
+                        placeholder="Not stated"
+                      />
+                    </label>
+                  </div>
+                  <label className="mb-2 flex items-center gap-2 text-[11px] text-muted">
+                    <input
+                      className="w-auto touch-manipulation rounded-[7px] border border-line bg-surface p-[7px] text-xs text-ink accent-purple placeholder:text-[#9295a3] focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[#00bff3]"
+                      type="checkbox"
+                      name="completed"
+                      defaultChecked={item.completed}
+                    />
+                    Completed
+                  </label>
+                  {sources(item.source_segment_ids)}
+                  <div className="mt-2.5">
+                    <Button
+                      variant="secondary"
+                      size="small"
+                      disabled={!!busy}
+                      type="submit"
+                    >
+                      Save action
+                    </Button>
+                  </div>
+                </form>
+              ))
+            ) : (
+              <p className="mb-3 text-xs [overflow-wrap:anywhere] text-muted">
+                No explicit action items found.
+              </p>
+            )}
+          </div>
+        ) : (
+          <div className="surface-card p-5 text-xs leading-relaxed text-muted">
+            No action items yet. Evidence-backed tasks will appear after a real
+            meeting is transcribed and summarized.
+          </div>
+        )}
+        <h2 className="mt-8 mb-4 text-sm font-semibold">Annotations</h2>
+        <div className="surface-card p-5 text-xs leading-relaxed text-muted">
+          No annotations yet. Recording highlights will be available in a later
+          checkpoint.
+        </div>
+        <h2 className="mt-8 mb-4 text-sm font-semibold">Meeting information</h2>
+        <dl className="grid gap-4 text-xs">
+          <div>
+            <dt className="text-muted">Source</dt>
+            <dd className="mt-1 break-all">
+              {meeting.meeting_url || "Demo meeting · no external link"}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-muted">Transcript</dt>
+            <dd className="mt-1 capitalize">{meeting.transcription_state}</dd>
+          </div>
+          <div>
+            <dt className="text-muted">Summary</dt>
+            <dd className="mt-1 capitalize">{meeting.summary_state}</dd>
+          </div>
+        </dl>
+      </aside>
     </div>
   );
 }

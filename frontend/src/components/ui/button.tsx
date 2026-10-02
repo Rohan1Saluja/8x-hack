@@ -6,8 +6,8 @@ type ButtonProps = ComponentProps<"button"> & {
 };
 
 const variants = {
-  primary: "border-transparent bg-purple text-white",
-  secondary: "border-line bg-white text-ink",
+  primary: "border-transparent bg-purple text-[#071b22]",
+  secondary: "border-line bg-surface text-ink",
   danger: "border-transparent bg-[#a63535] text-white",
   text: "border-transparent bg-transparent px-0 py-[5px] text-[11px] text-muted",
 };
@@ -26,7 +26,7 @@ export function Button({
 }: ButtonProps) {
   return (
     <button
-      className={`inline-flex cursor-pointer touch-manipulation items-center justify-center gap-6 rounded-lg border font-semibold focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[#b3aaff] enabled:hover:brightness-94 disabled:cursor-not-allowed disabled:opacity-48 ${variants[variant]} ${variant === "text" ? "" : sizes[size]} ${className}`}
+      className={`inline-flex cursor-pointer touch-manipulation items-center justify-center gap-2 rounded-lg border font-semibold focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[#00bff3] enabled:hover:brightness-94 disabled:cursor-not-allowed disabled:opacity-48 ${variants[variant]} ${variant === "text" ? "" : sizes[size]} ${className}`}
       {...props}
     />
   );

@@ -161,6 +161,8 @@ def test_action_updates_and_ownership(client, token, recording, mock_provider):
         body = (
             {"question": "What?", "request_id": str(uuid4())} if endpoint == "questions" else None
         )
+        if endpoint in ("send", "stop"):
+            body = {"expected_version": 0, "consent": True}
         assert (
             client.request(
                 method, root + "/" + endpoint, headers=token("auth0|bob"), json=body
@@ -195,7 +197,12 @@ def test_closed_gates_and_quota_no_provider_calls(
     client, token, recording, mock_provider, postgres
 ):
     root = f"/meetings/{recording}"
-    assert client.post(root + "/send", headers=token()).status_code == 503
+    assert (
+        client.post(
+            root + "/send", headers=token(), json={"expected_version": 0, "consent": True}
+        ).status_code
+        == 409
+    )
     with psycopg.connect(postgres) as conn:
         conn.execute("update app.provider_budget set audio_limit=0")
     assert client.post(root + "/transcribe", headers=token()).status_code == 429

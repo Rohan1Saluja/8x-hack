@@ -47,3 +47,13 @@ def attach_recording(conn, meeting_id, key, size, duration):
         "capture_state='stopped', failure_code=null where id=%s",
         (key, size, duration, meeting_id),
     )
+
+
+def transition_demo(conn, meeting_id, state, capture_state, failure_code=None, consent=False):
+    return conn.execute(
+        "update app.meetings set demo_state=%s, capture_state=%s, failure_code=%s, "
+        "lifecycle_version=lifecycle_version+1, lifecycle_updated_at=clock_timestamp(), "
+        "consent_confirmed_at=case when %s then clock_timestamp() else consent_confirmed_at end "
+        "where id=%s returning *",
+        (state, capture_state, failure_code, consent, meeting_id),
+    ).fetchone()

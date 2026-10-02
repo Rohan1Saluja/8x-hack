@@ -15,6 +15,7 @@ services:
       - ./docker/postgres/000_roles.sql:/docker-entrypoint-initdb.d/000_roles.sql:ro
       - ./supabase/migrations/202610010001_foundations.sql:/docker-entrypoint-initdb.d/001_foundations.sql:ro
       - ./supabase/migrations/202610010002_evidence.sql:/docker-entrypoint-initdb.d/002_evidence.sql:ro
+      - ./supabase/migrations/202610030001_demo_lifecycle.sql:/docker-entrypoint-initdb.d/003_demo_lifecycle.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U eightx -d eightx"]
       interval: 5s

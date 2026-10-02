@@ -14,12 +14,6 @@ def integrations(owner=Depends(current_user)):
     return evidence_service.integrations(owner)
 
 
-@router.post("/meetings/{meeting_id}/send")
-@router.post("/meetings/{meeting_id}/stop")
-def blocked_capture(meeting_id: UUID, owner=Depends(current_user)):
-    return evidence_service.blocked_capture(meeting_id, owner)
-
-
 @router.get("/meetings/{meeting_id}/evidence")
 def get_evidence(meeting_id: UUID, owner=Depends(current_user)):
     return evidence_service.get_evidence(meeting_id, owner)
