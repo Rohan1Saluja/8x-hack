@@ -1,5 +1,10 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "functions": {"app/main.py": {"maxDuration": 300, "excludeFiles": "{.env,.env.*,tests/**,.venv/**}"}},
-  "git": {"deploymentEnabled": false}
+  "functions": {
+    "app/main.py": {
+      "maxDuration": 300,
+      "excludeFiles": "{.env,.env.*,tests/**,.venv/**}"
+    }
+  },
+  "git": { "deploymentEnabled": true }
 }

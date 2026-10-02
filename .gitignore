@@ -19,3 +19,5 @@ playwright-report/
 *.pem
 *.key
 local-recordings/
+
+resources
