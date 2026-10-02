@@ -1,8 +1,15 @@
 # 8x-hack
 
-Preparation checkpoint for a Fathom-inspired Google Meet assistant. pnpm monorepo: Next.js frontend, FastAPI backend, PostgreSQL, private Vercel Blob recordings, and Auth0 identity. No deployed services, calendar integration, or paid fallback.
+Preparation checkpoint for a Fathom-inspired Google Meet assistant. pnpm monorepo: Next.js frontend, FastAPI backend, PostgreSQL, private Vercel Blob recordings, and Auth0 identity. Frontend and backend preview deployments are live; calendar integration and paid fallbacks are not included.
 
 Read the [preparation and implementation guide](docs/preparation-guide.md) for the code walkthrough, request flows, security and usage-budget decisions, confirmed local test scope, interview questions, and a five-minute demo script.
+
+## Live preview deployments
+
+- Frontend: https://8x-fathom-ui.vercel.app/
+- Backend: https://8x-fathom-api.vercel.app/
+
+These are hackathon preview deployments and may change while the project is under active development.
 
 ## Local setup
 
