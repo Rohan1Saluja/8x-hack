@@ -2,6 +2,8 @@
 
 Preparation checkpoint for a Fathom-inspired Google Meet assistant. pnpm monorepo: Next.js frontend, FastAPI backend, PostgreSQL, private Vercel Blob recordings, and Auth0 identity. No deployed services, calendar integration, or paid fallback.
 
+Read the [preparation and implementation guide](docs/preparation-guide.md) for the code walkthrough, request flows, security and usage-budget decisions, confirmed local test scope, interview questions, and a five-minute demo script.
+
 ## Local setup
 
 | Component | Local development | Production |
