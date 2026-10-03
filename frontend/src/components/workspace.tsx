@@ -170,9 +170,9 @@ export function Workspace({ name }: { name: string }) {
         <Link
           href="/workspace"
           className="brand"
-          aria-label="8x meeting workspace home"
+          aria-label="Mavri meeting workspace home"
         >
-          8x
+          Mavri
           <SignalIcon className="brand-mark" />
         </Link>
         <p className="eyebrow mt-12 mb-3 max-md:hidden">WORKSPACE</p>
