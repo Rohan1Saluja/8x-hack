@@ -1,4 +1,5 @@
 import logging
+from contextlib import asynccontextmanager
 
 import httpx
 import psycopg
@@ -6,6 +7,7 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
+from app import db
 from app.errors import AppError
 from app.routers.evidence import router as evidence_router
 from app.routers.health import router as health_router
@@ -13,7 +15,16 @@ from app.routers.meetings import router
 
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="Mavri API", version="0.1.0")
+
+@asynccontextmanager
+async def lifespan(app):
+    try:
+        yield
+    finally:
+        db.close_pool()
+
+
+app = FastAPI(title="Mavri API", version="0.1.0", lifespan=lifespan)
 app.include_router(router)
 app.include_router(evidence_router)
 app.include_router(health_router)

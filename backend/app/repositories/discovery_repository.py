@@ -1,5 +1,7 @@
 """Owner-filtered, parameterized search and exact transcript bookmarks."""
 
+LIST_HIGHLIGHTS_SQL = "select h.id,h.segment_id,s.text,s.start_seconds,s.end_seconds from app.highlights h join app.transcript_segments s on s.id=h.segment_id and s.meeting_id=h.meeting_id where h.meeting_id=%s order by s.start_seconds,h.id"
+
 
 def search(conn, owner, query):
     # Literal substring matching supports partial names without LIKE wildcard injection.
@@ -47,9 +49,7 @@ def search(conn, owner, query):
 
 def list_highlights(conn, meeting_id):
     return conn.execute(
-        "select h.id,h.segment_id,s.text,s.start_seconds,s.end_seconds from app.highlights h "
-        "join app.transcript_segments s on s.id=h.segment_id and s.meeting_id=h.meeting_id "
-        "where h.meeting_id=%s order by s.start_seconds,h.id",
+        LIST_HIGHLIGHTS_SQL,
         (meeting_id,),
     ).fetchall()
 

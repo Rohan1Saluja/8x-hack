@@ -1,6 +1,14 @@
 def resolve(conn, auth0_sub):
-    return conn.execute(
+    row = conn.execute("select id from app.users where auth0_sub=%s", (auth0_sub,)).fetchone()
+    if row is not None:
+        return row["id"]
+    # Only first-use registration writes. A concurrent registration may win;
+    # a separate READ COMMITTED statement then sees its committed row.
+    row = conn.execute(
         "insert into app.users(auth0_sub) values (%s) on conflict(auth0_sub) "
-        "do update set auth0_sub=excluded.auth0_sub returning id",
+        "do nothing returning id",
         (auth0_sub,),
-    ).fetchone()["id"]
+    ).fetchone()
+    if row is None:
+        row = conn.execute("select id from app.users where auth0_sub=%s", (auth0_sub,)).fetchone()
+    return row["id"]

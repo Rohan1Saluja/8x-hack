@@ -26,17 +26,19 @@ import type { ActionItem, Meeting, MeetingEvidence } from "@/lib/types";
 
 export function MeetingDetail({
   initial,
+  initialEvidence,
   onChanged,
   initialSegment,
   initialTab,
 }: {
   initial: Meeting;
+  initialEvidence: MeetingEvidence;
   initialSegment?: string | null;
   initialTab?: string | null;
   onChanged: () => Promise<void>;
 }) {
   const [meeting, setMeeting] = useState(initial);
-  const [evidence, setEvidence] = useState<MeetingEvidence | null>(null);
+  const [evidence, setEvidence] = useState<MeetingEvidence>(initialEvidence);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState("");
   const [tab, setTab] = useState<"summary" | "transcript" | "questions">(
@@ -68,28 +70,6 @@ export function MeetingDetail({
     ]);
     setMeeting(freshMeeting);
     setEvidence(freshEvidence);
-  }, [id]);
-  useEffect(() => {
-    let active = true;
-    const load = async () => {
-      try {
-        const [m, e] = await Promise.all([
-          api<Meeting>(`meetings/${id}`),
-          api<MeetingEvidence>(`meetings/${id}/evidence`),
-        ]);
-        if (active) {
-          setMeeting(m);
-          setEvidence(e);
-        }
-      } catch (e) {
-        if (active)
-          setError(e instanceof Error ? e.message : "Unable to load meeting.");
-      }
-    };
-    void load();
-    return () => {
-      active = false;
-    };
   }, [id]);
   const openedLink = useRef("");
   // Deep links select stored evidence only. They do not fetch private playback until a click.
@@ -150,8 +130,7 @@ export function MeetingDetail({
       setError(e instanceof Error ? e.message : "Operation failed.");
     } finally {
       try {
-        await refresh();
-        await onChanged();
+        await Promise.all([refresh(), onChanged()]);
       } catch {
         setError("Unable to refresh saved progress. Try again.");
       }
