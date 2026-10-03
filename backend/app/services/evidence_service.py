@@ -7,12 +7,28 @@ from app.config import settings
 from app.errors import AppError, fail
 from app.evidence_schemas import ActionUpdate, QuestionCreate
 from app.integrations import ai, storage
+from app.processing_logging import logger
 from app.repositories import discovery_repository, evidence_repository
 from app.services import job_service as jobs
 from app.services import meeting_service
 
 
-def run_failure(meeting_id, job_key, lease, exc):
+def run_failure(meeting_id, job_key, lease, exc, stage="processing_dependency"):
+    handled = isinstance(
+        exc, (groq.RateLimitError, groq.AuthenticationError, groq.PermissionDeniedError, ValueError)
+    )
+    if not handled and (not isinstance(exc, AppError) or exc.status_code >= 500):
+        logger.exception(
+            "Meeting processing dependency failed meeting_id=%s stage=%s exception_type=%s",
+            meeting_id,
+            stage,
+            type(exc).__name__,
+            extra={
+                "meeting_id": str(meeting_id),
+                "processing_stage": stage,
+                "exception_type": type(exc).__name__,
+            },
+        )
     if isinstance(exc, groq.RateLimitError):
         code, status, message = (
             "provider_quota",
@@ -130,16 +146,19 @@ def transcribe(meeting_id: UUID, owner):
     )
     if lease is None:
         return {"status": "ready"}
+    stage = "recording_download"
     try:
         recording = storage.download_recording(meeting["recording_key"])
+        stage = "groq_transcription"
         segments = ai.transcribe(meeting_id, recording, meeting["duration_seconds"])
+        stage = "transcript_persistence"
         with db.connection() as conn:
             jobs.finish(conn, meeting_id, "transcribe", lease)
             for segment in segments:
                 evidence_repository.insert_segment(conn, meeting_id=meeting_id, segment=segment)
         return {"status": "ready"}
     except Exception as exc:
-        run_failure(meeting_id, "transcribe", lease, exc)
+        run_failure(meeting_id, "transcribe", lease, exc, stage)
 
 
 def summarize(meeting_id: UUID, owner):
@@ -156,8 +175,10 @@ def summarize(meeting_id: UUID, owner):
     lease = jobs.claim(meeting_id, owner, "summarize", "summarize", "summary-v1", tokens=tokens)
     if lease is None:
         return {"status": "ready"}
+    stage = "summary_generation"
     try:
         summary = ai.generate(payload, segments)
+        stage = "summary_persistence"
         with db.connection() as conn:
             jobs.finish(conn, meeting_id, "summarize", lease)
             evidence_repository.insert_summary(
@@ -167,7 +188,7 @@ def summarize(meeting_id: UUID, owner):
                 evidence_repository.insert_action(conn, action=action, meeting_id=meeting_id)
         return {"status": "ready"}
     except Exception as exc:
-        run_failure(meeting_id, "summarize", lease, exc)
+        run_failure(meeting_id, "summarize", lease, exc, stage)
 
 
 def ask(meeting_id: UUID, body: QuestionCreate, owner):
@@ -193,8 +214,10 @@ def ask(meeting_id: UUID, body: QuestionCreate, owner):
             return evidence_repository.get_answer(
                 conn, meeting_id=meeting_id, request_id=body.request_id
             )["answer"]
+    stage = "answer_generation"
     try:
         answer = ai.generate(payload, segments, question=True)
+        stage = "answer_persistence"
         with db.connection() as conn:
             jobs.finish(conn, meeting_id, job_key, lease)
             evidence_repository.insert_question(
@@ -207,4 +230,4 @@ def ask(meeting_id: UUID, body: QuestionCreate, owner):
             )
         return answer
     except Exception as exc:
-        run_failure(meeting_id, job_key, lease, exc)
+        run_failure(meeting_id, job_key, lease, exc, stage)
