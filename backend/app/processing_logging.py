@@ -34,6 +34,6 @@ logger = logging.getLogger(__name__)
 handler = logging.StreamHandler()
 handler.setFormatter(ProcessingFormatter("%(levelname)s %(name)s %(message)s"))
 logger.addHandler(handler)
-logger.setLevel(logging.ERROR)
+logger.setLevel(logging.WARNING)
 # Do not let ancestor handlers print the unsanitized exception or a duplicate trace.
 logger.propagate = False
