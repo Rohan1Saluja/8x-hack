@@ -2819,3 +2819,115 @@ button:disabled {
     font-size: clamp(36px, 10.8vw, 46px);
   }
 }
+
+/* Native FAQ disclosures remain interactive before hydration and without JS. */
+.landing-faq {
+  display: grid;
+  grid-template-columns: 0.85fr 1.15fr;
+  gap: 70px;
+  padding: 95px 0 70px;
+  margin-top: 55px;
+  border-block: 1px solid #ffffff12;
+}
+.landing-faq .landing-section-heading h2 span {
+  color: #bab2ef;
+}
+.landing-faq .text-link {
+  display: inline-block;
+  margin-top: 24px;
+}
+.landing-faq-list {
+  min-width: 0;
+}
+.landing-faq-item {
+  border-bottom: 1px solid #a1bdd420;
+}
+.landing-faq-item:first-child {
+  border-top: 1px solid #a1bdd420;
+}
+.landing-faq-item summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 22px;
+  padding: 23px 10px;
+  cursor: pointer;
+  list-style: none;
+  color: #dce6ef;
+  font-size: 15px;
+  line-height: 1.5;
+  transition:
+    color 200ms ease,
+    background-color 200ms ease;
+}
+.landing-faq-item summary::-webkit-details-marker {
+  display: none;
+}
+.landing-faq-item summary:hover {
+  color: #a4e8f2;
+  background: #9ce7f105;
+}
+.landing-faq-item summary:focus-visible {
+  outline: 2px solid #9ce7f1;
+  outline-offset: 3px;
+  border-radius: 5px;
+}
+.landing-faq-item[open] summary {
+  color: #a4e8f2;
+}
+.landing-faq-item > p {
+  padding: 0 44px 24px 10px;
+  color: #a5b5c8;
+  font-size: 13px;
+  line-height: 1.9;
+}
+.landing-faq-toggle {
+  position: relative;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  color: #aa9dea;
+}
+.landing-faq-toggle::before,
+.landing-faq-toggle::after {
+  content: "";
+  position: absolute;
+  background: currentColor;
+  border-radius: 1px;
+}
+.landing-faq-toggle::before {
+  width: 12px;
+  height: 1px;
+  top: 8px;
+  left: 3px;
+}
+.landing-faq-toggle::after {
+  width: 1px;
+  height: 12px;
+  top: 3px;
+  left: 8px;
+  transition: transform 200ms ease;
+}
+.landing-faq-item[open] .landing-faq-toggle::after {
+  transform: scaleY(0);
+}
+@media (max-width: 900px) {
+  .landing-faq {
+    gap: 35px;
+  }
+}
+@media (max-width: 650px) {
+  .landing-faq {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 30px;
+    padding: 55px 0;
+    margin-top: 35px;
+  }
+  .landing-faq-item summary {
+    padding: 21px 4px;
+    font-size: 14px;
+  }
+  .landing-faq-item > p {
+    padding-inline: 4px 20px;
+  }
+}
