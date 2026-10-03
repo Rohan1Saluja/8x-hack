@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/signal";
 import { StatusBadge } from "@/components/lifecycle-controls";
 import { api } from "@/lib/api";
-import type { Meeting, SearchHit } from "@/lib/types";
+import type { Meeting, MeetingEvidence, SearchHit } from "@/lib/types";
 
 function date(value: string) {
   return new Date(value).toLocaleString(undefined, {
@@ -29,6 +29,7 @@ export function Workspace({ name }: { name: string }) {
   const params = useSearchParams();
   const selectedId = params.get("meeting");
   const [meetings, setMeetings] = useState<Meeting[]>([]);
+  const [selectedEvidence, setSelectedEvidence] = useState<MeetingEvidence | null>(null);
   const [selected, setSelected] = useState<Meeting | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -99,16 +100,21 @@ export function Workspace({ name }: { name: string }) {
     setLoading(true);
     setError("");
     setSelected(null);
+    setSelectedEvidence(null);
     void Promise.all([
       api<Meeting[]>("meetings"),
       selectedId
         ? api<Meeting>(`meetings/${selectedId}`)
         : Promise.resolve(null),
+      selectedId
+        ? api<MeetingEvidence>(`meetings/${selectedId}/evidence`)
+        : Promise.resolve(null),
     ])
-      .then(([rows, meeting]) => {
+      .then(([rows, meeting, evidence]) => {
         if (active) {
           setMeetings(rows);
           setSelected(meeting);
+          setSelectedEvidence(evidence);
         }
       })
       .catch((e) => {
@@ -277,10 +283,11 @@ export function Workspace({ name }: { name: string }) {
             loading ? (
               <WorkspaceSkeleton detail />
             ) : (
-              selected && (
+              selected && selectedEvidence && (
                 <MeetingDetail
                   key={selected.id}
                   initial={selected}
+                  initialEvidence={selectedEvidence}
                   onChanged={refresh}
                   initialSegment={params.get("segment")}
                   initialTab={params.get("tab")}

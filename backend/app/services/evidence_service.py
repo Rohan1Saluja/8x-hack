@@ -8,7 +8,7 @@ from app.errors import AppError, fail
 from app.evidence_schemas import ActionUpdate, QuestionCreate
 from app.integrations import ai, storage
 from app.processing_logging import logger
-from app.repositories import discovery_repository, evidence_repository
+from app.repositories import evidence_repository
 from app.services import job_service as jobs
 from app.services import meeting_service
 
@@ -80,20 +80,7 @@ def integrations(owner):
 def get_evidence(meeting_id: UUID, owner):
     with db.connection() as conn:
         meeting_service.require_owned(conn, meeting_id, owner)
-        segments = evidence_repository.list_segments(conn, meeting_id)
-        summary = evidence_repository.get_summary(conn, meeting_id)
-        actions = evidence_repository.list_actions(conn, meeting_id)
-        questions = evidence_repository.list_questions(conn, meeting_id)
-        progress = evidence_repository.list_jobs(conn, meeting_id)
-        highlights = discovery_repository.list_highlights(conn, meeting_id)
-    return {
-        "segments": segments,
-        "summary": summary["content"] if summary else None,
-        "actions": actions,
-        "questions": questions,
-        "jobs": progress,
-        "highlights": highlights,
-    }
+        return evidence_repository.read_bundle(conn, meeting_id)
 
 
 def update_action(meeting_id: UUID, action_id: UUID, body: ActionUpdate, owner):
