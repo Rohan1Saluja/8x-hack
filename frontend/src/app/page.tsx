@@ -7,10 +7,10 @@ import { LandingPage } from "@/components/landing-page";
 export const metadata: Metadata = {
   alternates: { canonical: "/" },
   openGraph: {
-    title: "8x — AI Meeting Intelligence",
+    title: "Mavri — AI Meeting Intelligence",
     description:
       "Turn conversations into grounded summaries, decisions, action items, and evidence-backed answers.",
-    siteName: "8x",
+    siteName: "Mavri",
     type: "website",
     locale: "en_US",
     url: "/",

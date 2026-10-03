@@ -1,15 +1,15 @@
-# 8x-hack
+# Mavri — AI Meeting Intelligence
 
-Preparation checkpoint for a Fathom-inspired Google Meet assistant. pnpm monorepo: Next.js frontend, FastAPI backend, PostgreSQL, private Vercel Blob recordings, and Auth0 identity. Frontend and backend preview deployments are live; calendar integration and paid fallbacks are not included.
+Mavri is an AI meeting intelligence workspace built for the 8x hackathon. Fathom is the source-product reference for the assignment. pnpm monorepo: Next.js frontend, FastAPI backend, PostgreSQL, private Vercel Blob recordings, and Auth0 identity. Frontend and backend deployments are listed below; calendar integration and paid fallbacks are not included.
 
 Read the [preparation and implementation guide](docs/preparation-guide.md) for the code walkthrough, request flows, security and usage-budget decisions, confirmed local test scope, interview questions, and a five-minute demo script.
 
-## Live preview deployments
+## Live deployments
 
-- Frontend: https://8x-fathom-ui.vercel.app/
+- Frontend: https://mavri-ai.vercel.app/
 - Backend: https://8x-fathom-api.vercel.app/
 
-These are hackathon preview deployments and may change while the project is under active development.
+The frontend uses the Mavri production domain. The backend URL above is the existing repository-documented deployment; confirm it against the configured Vercel backend before changing `BACKEND_URL`. The connected Vercel account exposed no projects during this branding checkpoint, so a backend rename could not be verified.
 
 ## Local setup
 
@@ -111,7 +111,7 @@ All configuration below is server-side. There are no `NEXT_PUBLIC_` variables.
 | `APP_ENV`                   | Backend             | `development` locally; `production` for the production project.                                                              |
 | `PLAYBACK_URL_SECONDS`      | Backend, optional   | Signed playback URL lifetime; default 300, maximum 600 seconds.                                                              |
 
-Auth0: register `http://localhost:3000/auth/callback` under Allowed Callback URLs and `http://localhost:3000` under Allowed Logout URLs and Allowed Web Origins. Add the same paths on the eventual production frontend origin. Enable refresh tokens for the API/application if using `offline_access`. The backend verifies signature, RS256, issuer, audience, expiry, issued-at, and subject; the frontend SDK handles the login/logout session. Tokens are never returned to browser JavaScript. Every meeting request derives ownership from the verified subject.
+Auth0: register `http://localhost:3000/auth/callback` under Allowed Callback URLs and `http://localhost:3000` under Allowed Logout URLs and Allowed Web Origins. For production, register `https://mavri-ai.vercel.app/auth/callback` under Allowed Callback URLs and `https://mavri-ai.vercel.app` under Allowed Logout URLs and Allowed Web Origins. Set frontend Vercel `APP_BASE_URL` to `https://mavri-ai.vercel.app` and redeploy. The operator must also update the Auth0 application name, Universal Login branding, and logo URL to Mavri. Keep the existing API audience unchanged. Enable refresh tokens for the API/application if using `offline_access`. The backend verifies signature, RS256, issuer, audience, expiry, issued-at, and subject; the frontend SDK handles the login/logout session. Tokens are never returned to browser JavaScript. Every meeting request derives ownership from the verified subject.
 
 ## Two Vercel projects (configuration only)
 

@@ -1,6 +1,6 @@
 import { ImageResponse } from "next/og";
 
-export const alt = "8x — AI Meeting Intelligence. Great conversations. Clear next moves.";
+export const alt = "Mavri — AI Meeting Intelligence. Great conversations. Clear next moves.";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -14,9 +14,9 @@ export default function OpenGraphImage() {
         <div style={{ position: "absolute", right: -10, top: -30, width: 500, height: 500, display: "flex", borderRadius: "50%", border: "1px solid #53d9f233" }} />
         <div style={{ display: "flex", flexDirection: "column", position: "relative", width: "100%" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 22 }}>
-            <span style={{ fontSize: 62, fontWeight: 700, letterSpacing: -4 }}>8x</span>
+            <span style={{ fontSize: 62, fontWeight: 700, letterSpacing: -4 }}>Mavri</span>
             <span style={{ width: 1, height: 28, background: "#ffffff30" }} />
-            <span style={{ fontSize: 18, letterSpacing: 3, color: "#aab7c9" }}>AI MEETING INTELLIGENCE</span>
+            <span style={{ fontSize: 18, letterSpacing: 3, color: "#aab7c9" }}>AI Meeting Intelligence</span>
           </div>
           <div style={{ display: "flex", flexDirection: "column", marginTop: 68, fontSize: 66, fontWeight: 700, letterSpacing: -3, lineHeight: 1.12 }}>
             <span>Great conversations.</span>

@@ -68,7 +68,7 @@ export function DemoExperience({ sample }: { sample: Sample }) {
     <main className="demo-page">
       <nav className="landing-nav">
         <Link className="brand" href="/">
-          8x <SignalIcon className="brand-mark" />
+          Mavri <SignalIcon className="brand-mark" />
         </Link>
         <span className="sample-tag">INTERACTIVE PRODUCT DEMO</span>
         <Link className="landing-signin" href="/workspace">
@@ -335,7 +335,7 @@ export function DemoExperience({ sample }: { sample: Sample }) {
         </aside>
       </div>
       <footer className="landing-footer">
-        <Link href="/">← Back to 8x</Link>
+        <Link href="/">← Back to Mavri</Link>
         <Link href="/workspace">Continue to your private workspace ↗</Link>
       </footer>
     </main>

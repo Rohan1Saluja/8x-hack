@@ -7,8 +7,8 @@ export function LandingPage({ signInAvailable }: { signInAvailable: boolean }) {
   return (
     <main className="landing">
       <nav className="landing-nav" aria-label="Public navigation">
-        <Link href="/" className="brand" aria-label="8x home">
-          8x <SignalIcon className="brand-mark" />
+        <Link href="/" className="brand" aria-label="Mavri home">
+          Mavri <SignalIcon className="brand-mark" />
         </Link>
         <div className="landing-nav-links">
           <a href="#how-it-works">The experience</a>
@@ -62,7 +62,7 @@ export function LandingPage({ signInAvailable }: { signInAvailable: boolean }) {
           <span>
             <i /> <i /> <i />
           </span>
-          <p>8x / meeting intelligence</p>
+          <p>Mavri / meeting intelligence</p>
           <span className="sample-tag">SCRIPTED PREVIEW</span>
         </div>
         <div className="preview-content">
@@ -410,7 +410,7 @@ export function LandingPage({ signInAvailable }: { signInAvailable: boolean }) {
       </section>
       <footer className="landing-footer">
         <Link href="/" className="brand">
-          8x
+          Mavri
         </Link>
         <span>Meeting intelligence. Grounded in conversation.</span>
         <a href="#faqs">FAQs</a>

@@ -100,7 +100,7 @@ const css = readdirSync(cssdir)
 writeFileSync(path.join(output, "app.css"), css);
 writeFileSync(
   path.join(output, "index.html"),
-  `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>8x · isolated visual fixture</title><link rel="stylesheet" href="/app.css"></head><body class="font-sans text-sm leading-[1.6]"><div style="padding:5px 15px;background:#352846;color:#e8daf6;font:10px sans-serif;text-align:center">LOCAL UI FIXTURE · Synthetic evidence for layout verification · No live services</div><div id="root"></div><script type="module" src="/app.js"></script></body></html>`,
+  `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Mavri · isolated visual fixture</title><link rel="stylesheet" href="/app.css"></head><body class="font-sans text-sm leading-[1.6]"><div style="padding:5px 15px;background:#352846;color:#e8daf6;font:10px sans-serif;text-align:center">LOCAL UI FIXTURE · Synthetic evidence for layout verification · No live services</div><div id="root"></div><script type="module" src="/app.js"></script></body></html>`,
 );
 // Silence is only a seekable local media fixture. Never treated as a real meeting recording.
 const wav = Buffer.alloc(44 + 8000 * 2 * 170);
