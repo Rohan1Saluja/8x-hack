@@ -315,3 +315,15 @@ The current model-confirmation message and this turn's eventual acknowledgement 
 not pre-logged before delivery. Operator close-out remains necessary for that final
 exchange. This records two completed exchanges, not automatic or complete session
 coverage. The original after-timer setup and historical limitations remain unchanged.
+
+
+## Landing FAQ continuation — preceding exchange captured
+
+The same session `ad54e34d-debe-4930-ac5d-a715645c7339` now includes the
+model-confirmation message `GPT-6 Astra (Medium)` and its delivered capture
+acknowledgement as exchange 3. Prompt submission: `2026-10-03T13:10:05Z`.
+Response observation/copy: `2026-10-03T13:17:36.840333Z`, not delivery time.
+The confirmed model remains `GPT-6 ASTRA`. Existing raw entries are unchanged;
+only the session aggregates and appended exchange are added by the recorder.
+The new FAQ request and its eventual final response await post-delivery capture.
+Manual capture and historical after-timer limitations remain unchanged.
