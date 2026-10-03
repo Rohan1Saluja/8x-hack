@@ -1,3 +1,4 @@
+import { SignalIcon } from "@/components/ui/signal";
 import type { FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -34,7 +35,7 @@ export function IntelligenceRail({
     <aside className="intelligence-rail" aria-label="Meeting intelligence">
       <div className="intelligence-heading">
         <span className="intelligence-mark" aria-hidden="true">
-          ◇
+          <SignalIcon />
         </span>
         <div>
           <h2>Intelligence</h2>
@@ -175,16 +176,6 @@ export function IntelligenceRail({
           </p>
         )}
       </section>
-      <section className="rail-section">
-        <div className="section-heading">
-          <h3>Highlights</h3>
-          <span className="text-[10px]">Coming next</span>
-        </div>
-        <p className="rail-empty">
-          Saving and sharing recording moments is not available yet. Use source
-          timestamps to revisit evidence.
-        </p>
-      </section>
       <section
         className="rail-section source-preview"
         aria-label="Selected evidence"
@@ -210,6 +201,16 @@ export function IntelligenceRail({
           </p>
         )}
       </section>
+      <details className="meeting-source highlights-preview">
+        <summary>
+          Highlights & sharing{" "}
+          <span className="ml-2 text-[9px]">COMING NEXT</span>
+        </summary>
+        <p>
+          Saving and sharing moments is not available yet. Select a source
+          timestamp to revisit the evidence.
+        </p>
+      </details>
       <details className="meeting-source">
         <summary>Meeting source</summary>
         <p>

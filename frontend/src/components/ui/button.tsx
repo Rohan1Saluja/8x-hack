@@ -26,7 +26,7 @@ export function Button({
 }: ButtonProps) {
   return (
     <button
-      className={`inline-flex cursor-pointer touch-manipulation items-center justify-center gap-2 rounded-lg border font-semibold focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[#00bff3] enabled:hover:brightness-94 disabled:cursor-not-allowed disabled:opacity-48 ${variants[variant]} ${variant === "text" ? "" : sizes[size]} ${className}`}
+      className={`ui-button button-${variant} inline-flex cursor-pointer touch-manipulation items-center justify-center gap-2 rounded-lg border font-semibold focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[#00bff3] enabled:hover:brightness-94 disabled:cursor-not-allowed disabled:opacity-48 ${variants[variant]} ${variant === "text" ? "" : sizes[size]} ${className}`}
       {...props}
     />
   );

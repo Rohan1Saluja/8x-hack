@@ -348,3 +348,33 @@ test("action edits use existing owner-scoped route and preserve explicit values"
   });
   await unmount();
 });
+
+test("question starters stay editable and never submit a provider request on selection", async () => {
+  await mount(
+    { ...meeting, transcription_state: "ready" },
+    { ...empty, segments: [segment] },
+  );
+  await click(find("Ask AI"));
+  const starter = document.querySelector(".suggested-questions button");
+  const textarea = document.querySelector('[name="question"]');
+  await click(starter);
+  assert.equal(textarea.value, "What did we decide?");
+  assert.equal(document.activeElement, textarea);
+  assert.equal(
+    requests.some((r) => r.method === "POST"),
+    false,
+  );
+  textarea.value = "What remains unresolved?";
+  await React.act(async () =>
+    document
+      .querySelector(".question-composer")
+      .dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })),
+  );
+  const posts = requests.filter((r) => r.method === "POST");
+  assert.equal(posts.length, 1);
+  assert.equal(posts[0].url, "/api/backend/meetings/meeting-test/questions");
+  assert.equal(JSON.parse(posts[0].body).question, "What remains unresolved?");
+  assert.ok(JSON.parse(posts[0].body).request_id);
+  assert.equal(textarea.value, "");
+  await unmount();
+});

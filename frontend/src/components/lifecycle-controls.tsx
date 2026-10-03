@@ -30,6 +30,7 @@ const automatic = new Set(["joining", "transcribing", "summarizing"]);
 export function StatusBadge({ meeting }: { meeting: Meeting }) {
   return (
     <span
+      data-state={meeting.lifecycle_state}
       className={`status-badge ${meeting.lifecycle_state === "failed" ? "status-failed" : ""}`}
     >
       <span

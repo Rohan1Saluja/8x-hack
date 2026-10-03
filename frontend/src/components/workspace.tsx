@@ -5,6 +5,11 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { MeetingDetail } from "@/components/meeting-detail";
+import {
+  SignalIcon,
+  SignalMotif,
+  WorkspaceSkeleton,
+} from "@/components/ui/signal";
 import { StatusBadge } from "@/components/lifecycle-controls";
 import { api } from "@/lib/api";
 import type { Meeting } from "@/lib/types";
@@ -116,19 +121,26 @@ export function Workspace({ name }: { name: string }) {
           aria-label="8x meeting workspace home"
         >
           8x
-          <span className="brand-mark" aria-hidden="true">
-            ≋
-          </span>
+          <SignalIcon className="brand-mark" />
         </Link>
         <p className="eyebrow mt-12 mb-3 max-md:hidden">WORKSPACE</p>
         <nav aria-label="Main navigation">
           <Link href="/workspace" aria-current="page" className="nav-link">
-            <span aria-hidden="true">▤</span> My meetings{" "}
+            <SignalIcon /> My meetings{" "}
             <span className="ml-auto text-xs text-muted">
               {meetings.length}
             </span>
           </Link>
         </nav>
+        <div className="nav-note max-md:hidden">
+          <span className="eyebrow">BUILT AROUND EVIDENCE</span>
+          <p>
+            Keep the conversation.
+            <br />
+            Find the clarity.
+          </p>
+          <span className="nav-note-line" />
+        </div>
         <div className="nav-footer">
           <span className="avatar">{name.slice(0, 1).toUpperCase()}</span>
           <div className="min-w-0">
@@ -144,7 +156,12 @@ export function Workspace({ name }: { name: string }) {
       </aside>
       <div className="min-w-0">
         <div className="workspace-topbar">
-          <span>Personal workspace</span>
+          <span>
+            Workspace <span className="mx-2 opacity-40">/</span>{" "}
+            <span className="text-ink">
+              {selectedId ? "Meeting intelligence" : "My meetings"}
+            </span>
+          </span>
           <span className="flex items-center gap-2">
             <span className="status-dot" /> Private to you
           </span>
@@ -165,17 +182,19 @@ export function Workspace({ name }: { name: string }) {
               {!selectedId && (
                 <>
                   <p className="eyebrow mb-3">YOUR CONVERSATION LIBRARY</p>
-                  <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-                    My meetings
+                  <h1 className="library-title">
+                    My meetings<span className="text-cyan-300">.</span>
                   </h1>
                   <p className="mt-2 text-sm text-muted">
-                    Conversations become evidence. Evidence becomes clarity.
+                    A little less noise. A lot more clarity.
                   </p>
                 </>
               )}
             </div>
             {!selectedId && (
               <Button
+                aria-expanded={showCreate}
+                aria-controls="create-meeting"
                 onClick={() => {
                   setShowCreate((v) => !v);
                   setError("");
@@ -204,9 +223,7 @@ export function Workspace({ name }: { name: string }) {
           )}
           {selectedId ? (
             loading ? (
-              <div className="empty-state" role="status">
-                Opening your meeting…
-              </div>
+              <WorkspaceSkeleton detail />
             ) : (
               selected && (
                 <MeetingDetail
@@ -218,9 +235,56 @@ export function Workspace({ name }: { name: string }) {
             )
           ) : (
             <>
+              {!showCreate && (
+                <section
+                  className="library-intro"
+                  aria-label="Bring a conversation into focus"
+                >
+                  <div className="relative z-1">
+                    <span className="signal-label">
+                      <SignalIcon /> CONVERSATION → CLARITY
+                    </span>
+                    <h2>
+                      Good conversations deserve
+                      <br className="max-sm:hidden" /> a clear next step.
+                    </h2>
+                    <p>
+                      Recordings, decisions, and the evidence behind them.
+                      <br className="max-sm:hidden" /> Together in one private
+                      workspace.
+                    </p>
+                    <div className="mt-5 flex flex-wrap items-center gap-4">
+                      <Button
+                        variant="secondary"
+                        size="compact"
+                        onClick={() => {
+                          setDemo(false);
+                          setShowCreate(true);
+                        }}
+                      >
+                        Add a meeting link <span aria-hidden="true">↗</span>
+                      </Button>
+                      <button
+                        className="text-link"
+                        onClick={() => {
+                          setDemo(true);
+                          setShowCreate(true);
+                        }}
+                      >
+                        Explore demo <span aria-hidden="true">→</span>
+                      </button>
+                    </div>
+                  </div>
+                  <div className="library-motif">
+                    <SignalMotif />
+                    <span>SIGNAL / INTELLIGENCE</span>
+                  </div>
+                </section>
+              )}
               {showCreate && (
                 <section
-                  className="surface-card mb-7 p-5 sm:p-6"
+                  id="create-meeting"
+                  className="surface-card create-surface mb-7 p-5 sm:p-6"
                   aria-label="New meeting"
                 >
                   <h2 className="text-lg font-semibold">
@@ -304,9 +368,9 @@ export function Workspace({ name }: { name: string }) {
                 </section>
               )}
               <section aria-label="Meeting library">
-                <div className="mb-5 flex flex-wrap items-center justify-between gap-4">
+                <div className="library-controls mb-5 flex flex-wrap items-center justify-between gap-4">
                   <div
-                    className="flex gap-1 rounded-lg bg-surface p-1"
+                    className="library-filters flex gap-1 rounded-lg p-1"
                     aria-label="Filter meetings"
                   >
                     {[
@@ -336,7 +400,7 @@ export function Workspace({ name }: { name: string }) {
                     type="search"
                   />
                 </div>
-                <div className="surface-card overflow-hidden">
+                <div className="library-table overflow-hidden">
                   <div className="library-heading">
                     <span>MEETING</span>
                     <span>STATUS</span>
@@ -344,9 +408,7 @@ export function Workspace({ name }: { name: string }) {
                     <span />
                   </div>
                   {loading ? (
-                    <div className="empty-state" role="status">
-                      Loading your meetings…
-                    </div>
+                    <WorkspaceSkeleton />
                   ) : visible.length ? (
                     visible.map((m) => (
                       <Link
@@ -356,7 +418,7 @@ export function Workspace({ name }: { name: string }) {
                       >
                         <span className="flex min-w-0 items-center gap-4">
                           <span className="meeting-icon" aria-hidden="true">
-                            ▷
+                            <SignalIcon />
                           </span>
                           <span className="min-w-0">
                             <strong className="block truncate text-sm font-medium">
@@ -364,7 +426,11 @@ export function Workspace({ name }: { name: string }) {
                             </strong>
                             <span className="mt-1.5 block text-xs text-muted">
                               {date(m.created_at)} ·{" "}
-                              {m.meeting_url ? "Google Meet" : "Demo meeting"}
+                              {m.capture_mode === "demo"
+                                ? "Demo meeting"
+                                : m.meeting_url
+                                  ? "Google Meet"
+                                  : "Imported recording"}
                             </span>
                             <span className="mt-1.5 block text-[11px] text-muted">
                               {m.capture_mode === "demo"
@@ -385,16 +451,14 @@ export function Workspace({ name }: { name: string }) {
                                 .toString()
                                 .padStart(2, "0")}`}
                         </span>
-                        <span className="text-muted" aria-hidden="true">
+                        <span className="row-arrow" aria-hidden="true">
                           →
                         </span>
                       </Link>
                     ))
                   ) : (
                     <div className="empty-state">
-                      <span className="empty-icon" aria-hidden="true">
-                        ▤
-                      </span>
+                      <SignalMotif compact />
                       <h2 className="mt-5 text-lg font-semibold text-ink">
                         {meetings.length
                           ? "No matching meetings"
@@ -405,6 +469,19 @@ export function Workspace({ name }: { name: string }) {
                           ? "Try another title or change the status filter."
                           : "Start with a meeting link or a demo. Your recordings, transcripts and notes will live here."}
                       </p>
+                      {!!meetings.length && (
+                        <Button
+                          variant="secondary"
+                          size="compact"
+                          className="mt-5"
+                          onClick={() => {
+                            setQuery("");
+                            setFilter("all");
+                          }}
+                        >
+                          Clear filters
+                        </Button>
+                      )}
                       {!meetings.length && (
                         <Button
                           className="mt-6"
