@@ -338,6 +338,64 @@ export function LandingPage({ signInAvailable }: { signInAvailable: boolean }) {
           </div>
         </div>
       </section>
+      <section
+        id="faqs"
+        className="landing-faq"
+        aria-labelledby="landing-faq-heading"
+      >
+        <div className="landing-section-heading">
+          <p className="eyebrow ai-label">A LITTLE MORE CLARITY</p>
+          <h2 id="landing-faq-heading">
+            Good questions.
+            <br />
+            <span>Clear answers.</span>
+          </h2>
+          <p>What to expect before your next conversation.</p>
+          <Link href="/demo" className="text-link">
+            See it in the demo <span aria-hidden="true">↗</span>
+          </Link>
+        </div>
+        <div className="landing-faq-list">
+          {[
+            [
+              "What happens after a meeting?",
+              "A recording can become a timestamped transcript, a structured summary, decisions, and editable action items. Ask follow-up questions, revisit cited moments, and search for the conversation when you need its context again.",
+            ],
+            [
+              "Does a live bot join my calls?",
+              "Not in this version. The demo simulates joining, admission, and recording; no live bot joins your call. Real recordings currently use an operator-assisted import; there is no in-app upload control. Only use recordings made with participants’ consent.",
+            ],
+            [
+              "Can I try it without signing in?",
+              "Yes. The public demo lets you explore a scripted meeting and its intelligence workflow without an account. Sign in to use your own private workspace.",
+            ],
+            [
+              "How do I check an AI answer?",
+              "Follow its citations to stored transcript segments from that meeting. When a recording is available, you can jump to the cited moment. Ask AI is designed to stay within the meeting evidence and say when there is not enough information. AI can still make mistakes—check the source before acting.",
+            ],
+            [
+              "Who can access my recordings?",
+              "Your meetings are tied to your signed-in account. Recording playback requires authorization and uses temporary access. Only upload recordings you have permission to use, with participants’ consent.",
+            ],
+            [
+              "Can I edit the action items?",
+              "Yes. You can review and edit action items and update their completion status. Owners and deadlines should come from the conversation; when they are not stated, they remain unknown rather than being guessed.",
+            ],
+          ].map(([question, answer], index) => (
+            <details
+              className="landing-faq-item"
+              key={question}
+              open={index === 0}
+            >
+              <summary>
+                <span>{question}</span>
+                <span className="landing-faq-toggle" aria-hidden="true" />
+              </summary>
+              <p>{answer}</p>
+            </details>
+          ))}
+        </div>
+      </section>
       <section className="landing-close">
         <SignalIcon />
         <p className="eyebrow">KEEP THE CONVERSATION. FIND THE CLARITY.</p>
@@ -355,6 +413,7 @@ export function LandingPage({ signInAvailable }: { signInAvailable: boolean }) {
           8x
         </Link>
         <span>Meeting intelligence. Grounded in conversation.</span>
+        <a href="#faqs">FAQs</a>
         <a href="#how-it-works">Back to the experience ↑</a>
       </footer>
     </main>
