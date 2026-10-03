@@ -95,11 +95,16 @@ This is a fresh conversation, with no preceding delivered exchange available to 
 - Wrapper session: `df62bfee-7605-418d-8d22-50f8d3383702`.
 - Current user prompt submission time: `2026-10-03T00:15:42Z`, converted from the
   supplied `2026-10-03T05:45:42+05:30` metadata.
-- Actual selected model: unconfirmed; do not infer it from the planned executor.
-- The final response must be delivered before its verbatim pair can be recorded.
-  User/operator model confirmation and post-delivery close-out remain required.
-  Do not log drafts, reconstruct earlier exchanges from memory, or claim automatic
-  or complete capture. The existing after-timer and historical gaps remain disclosed.
+- Actual implementation-turn model: `GPT-6 ASTRA`, confirmed by the user with
+  `GPT-6 Astra (High)` at `2026-10-03T00:38:50Z`. Thinking effort is not a separate
+  recorder metadata field. This is user confirmation, not independent routing proof.
+- The delivered implementation prompt/final-response pair is now recorded in
+  `.agent-logs/2026-10-03_00-15-42_df62bfee-7605-418d-8d22-50f8d3383702.md`.
+  Response time is the actual UTC observation/copy time, `2026-10-03T00:38:20Z`,
+  not an invented delivery time. See CAPTURE-TEST.md for timing and close-out gaps.
+- Follow-up close-out exchanges are not included in that implementation pair.
+  No draft is logged and no automatic or complete-session capture is claimed.
+  The existing after-timer and historical gaps remain disclosed.
 
 ## Next checkpoint
 
