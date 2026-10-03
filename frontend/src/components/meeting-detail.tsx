@@ -4,6 +4,13 @@ import {
   LifecycleControls,
   StatusBadge,
 } from "@/components/lifecycle-controls";
+import {
+  EvidenceEmpty,
+  EvidenceFact,
+  SourceLinks,
+  timestamp as time,
+} from "@/components/meeting-evidence";
+import { IntelligenceRail } from "@/components/intelligence-rail";
 import { Button } from "@/components/ui/button";
 
 import {
@@ -14,18 +21,7 @@ import {
   type FormEvent,
 } from "react";
 import { api } from "@/lib/api";
-import type {
-  ActionItem,
-  Evidence,
-  Meeting,
-  MeetingEvidence,
-} from "@/lib/types";
-
-function time(seconds: number) {
-  return `${Math.floor(seconds / 60)}:${Math.floor(seconds % 60)
-    .toString()
-    .padStart(2, "0")}`;
-}
+import type { ActionItem, Meeting, MeetingEvidence } from "@/lib/types";
 
 export function MeetingDetail({
   initial,
@@ -43,6 +39,11 @@ export function MeetingDetail({
   );
   const [transcriptQuery, setTranscriptQuery] = useState("");
   const [playback, setPlayback] = useState("");
+  const [activeSegment, setActiveSegment] = useState<string | null>(null);
+  const [playbackBusy, setPlaybackBusy] = useState(false);
+  const [notice, setNotice] = useState("");
+  const operationLock = useRef(false);
+  const playbackLock = useRef(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleted, setDeleted] = useState(false);
   const player = useRef<HTMLVideoElement>(null);
@@ -80,21 +81,47 @@ export function MeetingDetail({
     };
   }, [id]);
   const running = evidence?.jobs.some((j) => j.status === "running") || false;
+  const processing = busy === "transcribe" || busy === "summarize" || running;
+  const hasTranscript = !!evidence?.segments.length;
+  const interrupted = evidence?.jobs.some((j) => j.interrupted) || false;
+  const selectedSegment = evidence?.segments.find(
+    (s) => s.id === activeSegment,
+  );
   useEffect(() => {
-    if (!running) return;
+    if (tab !== "transcript" || !activeSegment) return;
+    document
+      .getElementById(`segment-${activeSegment}`)
+      ?.focus({ preventScroll: true });
+    document
+      .getElementById(`segment-${activeSegment}`)
+      ?.scrollIntoView({ block: "nearest" });
+  }, [tab, activeSegment]);
+  useEffect(() => {
+    if (!processing) return;
     const interval = setInterval(() => {
       void refresh().catch(() =>
         setError("Progress refresh failed. Try Refresh details."),
       );
     }, 10000);
     return () => clearInterval(interval);
-  }, [running, refresh]);
+  }, [processing, refresh]);
   async function action(stage: string) {
-    if (busy) return;
+    if (operationLock.current) return;
+    operationLock.current = true;
+    setNotice("");
     setBusy(stage);
     setError("");
     try {
       await api(`meetings/${id}/${stage}`, "POST");
+      if (stage === "transcribe") setTab("transcript");
+      if (stage === "summarize") setTab("summary");
+      setNotice(
+        stage === "recover"
+          ? "Interrupted work recovered. You can retry the unfinished stage."
+          : stage === "transcribe"
+            ? "Transcript saved. You can now generate a summary."
+            : "Summary saved. Review its linked evidence below.",
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : "Operation failed.");
     } finally {
@@ -104,61 +131,65 @@ export function MeetingDetail({
       } catch {
         setError("Unable to refresh saved progress. Try again.");
       }
+      operationLock.current = false;
       setBusy("");
     }
   }
   async function authorizePlayback(at?: number) {
+    if (!meeting.recording_ready) return;
+    pendingSeek.current = at ?? player.current?.currentTime ?? 0;
+    if (playbackLock.current) return;
+    playbackLock.current = true;
+    setPlaybackBusy(true);
     setError("");
     try {
-      pendingSeek.current = at ?? player.current?.currentTime ?? 0;
       const result = await api<{ url: string }>(`meetings/${id}/playback`);
       setPlayback(result.url);
+      if (
+        result.url === playback &&
+        player.current &&
+        player.current.readyState >= 1
+      ) {
+        player.current.currentTime = pendingSeek.current ?? 0;
+        pendingSeek.current = null;
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Playback unavailable.");
+    } finally {
+      playbackLock.current = false;
+      setPlaybackBusy(false);
     }
   }
   function seek(segmentId: string) {
     const segment = evidence?.segments.find((s) => s.id === segmentId);
     if (!segment) return;
-    if (player.current && playback) {
+    setActiveSegment(segmentId);
+    if (!meeting.recording_ready) return;
+    if (player.current && playback && player.current.readyState >= 1) {
       player.current.currentTime = segment.start_seconds;
-      void player.current.play().catch(() => {});
     } else {
       void authorizePlayback(segment.start_seconds);
     }
   }
-  function sources(ids: string[]) {
-    return (
-      <span className="inline-flex flex-wrap gap-[5px]">
-        {ids.map((sourceId) => {
-          const segment = evidence?.segments.find((s) => s.id === sourceId);
-          return segment ? (
-            <button
-              className="inline-flex cursor-pointer touch-manipulation items-center justify-center rounded border-0 bg-[#163640] px-[7px] py-[3px] text-[10px] font-semibold text-purple focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[#00bff3] enabled:hover:brightness-94 disabled:cursor-not-allowed disabled:opacity-48"
-              type="button"
-              key={sourceId}
-              onClick={() => seek(sourceId)}
-              aria-label={`Play source at ${time(segment.start_seconds)}`}
-            >
-              {time(segment.start_seconds)}
-            </button>
-          ) : null;
-        })}
-      </span>
-    );
+  function openEvidence(segmentId: string) {
+    setTranscriptQuery("");
+    setTab("transcript");
+    seek(segmentId);
   }
-  const fact = (item: Evidence, key: number | string) => (
-    <li className="pb-3" key={key}>
-      <p className="mb-[3px] text-[13px]">{item.text}</p>
-      {sources(item.source_segment_ids)}
-    </li>
+  const sources = (ids: string[]) => (
+    <SourceLinks
+      ids={ids}
+      segments={evidence?.segments || []}
+      onOpen={openEvidence}
+    />
   );
   async function saveAction(
     item: ActionItem,
     event: FormEvent<HTMLFormElement>,
   ) {
     event.preventDefault();
-    if (busy) return;
+    if (operationLock.current) return;
+    operationLock.current = true;
     const data = new FormData(event.currentTarget);
     setBusy(item.id);
     setError("");
@@ -170,15 +201,18 @@ export function MeetingDetail({
         completed: data.get("completed") === "on",
       });
       await refresh();
+      setNotice("Action item saved.");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Action update failed.");
     } finally {
+      operationLock.current = false;
       setBusy("");
     }
   }
   async function ask(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (busy) return;
+    if (operationLock.current) return;
+    operationLock.current = true;
     const form = event.currentTarget,
       data = new FormData(form);
     setBusy("question");
@@ -195,10 +229,13 @@ export function MeetingDetail({
     } catch (e) {
       setError(e instanceof Error ? e.message : "Question failed.");
     } finally {
+      operationLock.current = false;
       setBusy("");
     }
   }
   async function remove() {
+    if (operationLock.current) return;
+    operationLock.current = true;
     setBusy("delete");
     setError("");
     try {
@@ -208,6 +245,7 @@ export function MeetingDetail({
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to delete meeting.");
     } finally {
+      operationLock.current = false;
       setBusy("");
     }
   }
@@ -222,127 +260,275 @@ export function MeetingDetail({
         </p>
       </div>
     );
+  const transcriptBusy =
+    busy === "transcribe" || meeting.transcription_state === "running";
+  const summaryBusy =
+    busy === "summarize" || meeting.summary_state === "running";
+  const filteredSegments =
+    evidence?.segments.filter((s) =>
+      s.text.toLowerCase().includes(transcriptQuery.toLowerCase()),
+    ) || [];
+  const stageBlocked = !!busy || running || !evidence;
   return (
-    <div className="detail-layout">
-      <div className="detail-main">
-        <LifecycleControls
-          meeting={meeting}
-          onChange={(next) => {
-            setMeeting((current) =>
-              next.lifecycle_version >= current.lifecycle_version
-                ? next
-                : current,
-            );
-          }}
-        />
-        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-          <StatusBadge meeting={meeting} />
+    <div className="meeting-intelligence">
+      <header className="meeting-header">
+        <div className="min-w-0">
+          <p className="eyebrow">MEETING INTELLIGENCE</p>
+          <h1>{meeting.title}</h1>
+          <div className="meeting-meta">
+            <time dateTime={meeting.created_at}>
+              {new Date(meeting.created_at).toLocaleString(undefined, {
+                dateStyle: "medium",
+                timeStyle: "short",
+              })}
+            </time>
+            <span>
+              {meeting.capture_mode === "demo"
+                ? "Simulated capture"
+                : meeting.recording_ready
+                  ? "Imported recording"
+                  : "Meeting link"}
+            </span>
+            {meeting.duration_seconds !== null && (
+              <span>{time(meeting.duration_seconds)} duration</span>
+            )}
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <span role="status">
+            <StatusBadge meeting={meeting} />
+          </span>
           <Button
             variant="text"
             disabled={!!busy}
-            onClick={() => void refresh().catch((e) => setError(e.message))}
+            onClick={() =>
+              void refresh()
+                .then(() => {
+                  setError("");
+                  setNotice("Meeting details refreshed.");
+                })
+                .catch((e) => setError(e.message))
+            }
           >
             Refresh details
           </Button>
         </div>
-        {error && (
-          <p
-            className="mb-3 rounded-[7px] border border-[#704349] bg-[#372326] p-3 text-[#ffc5ca]"
-            role="alert"
-          >
-            {error}
-          </p>
-        )}
-        {meeting.failure_code && (
-          <p className="mb-3 rounded-[7px] border border-[#704349] bg-[#372326] p-3 text-[#ffc5ca]">
-            Last processing failure: {meeting.failure_code.replaceAll("_", " ")}
-            . Completed stages are saved.
-          </p>
-        )}
-        {!meeting.recording_ready && (
-          <div className="player-empty">
-            <span
-              className="mx-auto mb-4 grid size-14 place-items-center rounded-full bg-[#24292f] text-2xl text-cyan-400"
-              aria-hidden="true"
-            >
-              ▷
-            </span>
-            <h2 className="text-base font-medium">
-              {meeting.lifecycle_state === "recording"
-                ? "Demo recording in progress"
-                : "Your recording will appear here"}
-            </h2>
-            <p className="mx-auto mt-2 max-w-sm text-xs leading-relaxed text-muted">
-              {meeting.capture_mode === "demo"
-                ? "This walkthrough simulates capture without creating media. No recording, timestamps or speaker identities are invented."
-                : "Private playback becomes available after a real recording is attached."}
-            </p>
-          </div>
-        )}
-        {meeting.recording_ready && (
-          <div>
-            {playback ? (
-              <video
-                className="block max-h-[300px] w-full rounded-lg bg-[#191822]"
-                ref={player}
-                src={playback}
-                controls
-                preload="metadata"
-                onLoadedMetadata={() => {
-                  if (player.current && pendingSeek.current !== null) {
-                    player.current.currentTime = pendingSeek.current;
-                    pendingSeek.current = null;
+      </header>
+      <LifecycleControls
+        meeting={meeting}
+        onChange={(next) => {
+          setMeeting((current) =>
+            next.lifecycle_version >= current.lifecycle_version
+              ? next
+              : current,
+          );
+        }}
+      />
+      {error && (
+        <p className="error-notice mb-4" role="alert">
+          {error}
+        </p>
+      )}
+      {meeting.failure_code && (
+        <p className="error-notice mb-4">
+          Last failure: {meeting.failure_code.replaceAll("_", " ")}. Completed
+          stages are saved. Refresh before retrying; quota failures require
+          reviewing the available free allowance.
+        </p>
+      )}
+      <p className="sr-only" role="status">
+        {notice}
+      </p>
+      <div className="detail-layout">
+        <div className="detail-main">
+          <section className="recording-surface" aria-label="Meeting recording">
+            <div className="recording-toolbar">
+              <span className="eyebrow">ORIGINAL RECORDING</span>
+              <span>
+                {meeting.recording_ready
+                  ? "Private playback"
+                  : "No media attached"}
+              </span>
+            </div>
+            {meeting.recording_ready ? (
+              playback ? (
+                <video
+                  className="recording-player"
+                  ref={player}
+                  src={playback}
+                  controls
+                  preload="metadata"
+                  aria-label="Private meeting recording"
+                  onLoadedMetadata={() => {
+                    if (player.current && pendingSeek.current !== null) {
+                      player.current.currentTime = pendingSeek.current;
+                      pendingSeek.current = null;
+                    }
+                  }}
+                  onError={() =>
+                    setError(
+                      "Playback link may have expired. Choose Refresh playback link.",
+                    )
                   }
-                }}
-                onError={() =>
-                  setError(
-                    "Playback link may have expired. Choose Refresh playback link.",
-                  )
-                }
-              />
+                />
+              ) : (
+                <div className="player-empty">
+                  <span className="play-symbol" aria-hidden="true">
+                    ▷
+                  </span>
+                  <h2>Your source of truth</h2>
+                  <p>
+                    The original recording stays private. Open it to review the
+                    moments behind your notes.
+                  </p>
+                  <Button
+                    disabled={playbackBusy}
+                    onClick={() => void authorizePlayback()}
+                  >
+                    {playbackBusy
+                      ? "Authorizing playback…"
+                      : "Load private recording"}
+                  </Button>
+                </div>
+              )
             ) : (
-              <Button
-                variant="secondary"
-                onClick={() => void authorizePlayback()}
-              >
-                Load private recording
-              </Button>
+              <div className="player-empty">
+                <span className="play-symbol" aria-hidden="true">
+                  ▷
+                </span>
+                <h2>
+                  {meeting.capture_mode === "demo"
+                    ? "A walkthrough, without the recording"
+                    : "Start with the original conversation"}
+                </h2>
+                <p>
+                  {meeting.capture_mode === "demo"
+                    ? "Capture is simulated. No bot joins, no audio is captured, and no transcript or AI notes are created."
+                    : "A real recording must be imported before transcription. This workspace does not capture live meeting audio."}
+                </p>
+                <details className="import-help">
+                  <summary>How to add a real recording</summary>
+                  <p>
+                    Create a new meeting and ask your workspace operator to
+                    import a complete PCM WAV recording (up to 3 minutes / 24
+                    MB), then select Refresh details. Notify participants and
+                    obtain consent before recording. Upload is not available in
+                    this interface.
+                  </p>
+                </details>
+              </div>
             )}
             {playback && (
-              <Button variant="text" onClick={() => void authorizePlayback()}>
-                Refresh playback link
-              </Button>
+              <div className="px-5 pb-3">
+                <Button
+                  variant="text"
+                  disabled={playbackBusy}
+                  onClick={() => void authorizePlayback()}
+                >
+                  {playbackBusy
+                    ? "Refreshing playback…"
+                    : "Refresh playback link"}
+                </Button>
+              </div>
             )}
-          </div>
-        )}
-        <div className="my-[15px] flex flex-wrap gap-2">
-          <Button
-            variant="secondary"
-            size="compact"
-            disabled={
-              !!busy ||
-              !meeting.recording_ready ||
-              meeting.transcription_state === "ready" ||
-              (running && !evidence?.jobs.some((j) => j.interrupted))
-            }
-            onClick={() => void action("transcribe")}
+          </section>
+          <section
+            className="processing-rail"
+            aria-label="Recording processing"
           >
-            {busy === "transcribe" ? "Transcribing…" : "Generate transcript"}
-          </Button>
-          <Button
-            variant="secondary"
-            size="compact"
-            disabled={
-              !!busy ||
-              meeting.transcription_state !== "ready" ||
-              meeting.summary_state === "ready" ||
-              (running && !evidence?.jobs.some((j) => j.interrupted))
-            }
-            onClick={() => void action("summarize")}
-          >
-            {busy === "summarize" ? "Summarizing…" : "Generate summary"}
-          </Button>
-          {evidence?.jobs.some((j) => j.interrupted) && (
+            <div className="processing-step">
+              <span
+                className={`pipeline-number ${meeting.recording_ready ? "is-ready" : ""}`}
+              >
+                {meeting.recording_ready ? "✓" : "1"}
+              </span>
+              <div>
+                <strong>Recording</strong>
+                <p>
+                  {meeting.recording_ready
+                    ? "Attached privately"
+                    : "Awaiting real media"}
+                </p>
+              </div>
+            </div>
+            <div className="processing-step">
+              <span
+                className={`pipeline-number ${hasTranscript ? "is-ready" : ""}`}
+              >
+                {hasTranscript ? "✓" : "2"}
+              </span>
+              <div>
+                <strong>Transcript</strong>
+                <p>
+                  {transcriptBusy
+                    ? "Transcribing recording…"
+                    : hasTranscript
+                      ? `${evidence?.segments.length} stored segments`
+                      : "Timestamped evidence"}
+                </p>
+                <Button
+                  variant="text"
+                  disabled={
+                    stageBlocked ||
+                    !meeting.recording_ready ||
+                    meeting.transcription_state === "ready"
+                  }
+                  onClick={() => void action("transcribe")}
+                >
+                  {transcriptBusy
+                    ? "Transcribing…"
+                    : hasTranscript
+                      ? "Transcript saved"
+                      : meeting.transcription_state === "failed"
+                        ? "Retry transcription"
+                        : "Generate transcript"}
+                </Button>
+              </div>
+            </div>
+            <div className="processing-step ai-step">
+              <span
+                className={`pipeline-number ${evidence?.summary ? "is-ready" : ""}`}
+              >
+                {evidence?.summary ? "✓" : "3"}
+              </span>
+              <div>
+                <strong>Intelligence</strong>
+                <p>
+                  {summaryBusy
+                    ? "Summarizing evidence…"
+                    : evidence?.summary
+                      ? "Summary saved"
+                      : "Grounded in transcript"}
+                </p>
+                <Button
+                  variant="text"
+                  disabled={
+                    stageBlocked ||
+                    !hasTranscript ||
+                    meeting.transcription_state !== "ready" ||
+                    meeting.summary_state === "ready"
+                  }
+                  onClick={() => void action("summarize")}
+                >
+                  {summaryBusy
+                    ? "Summarizing…"
+                    : evidence?.summary
+                      ? "Summary saved"
+                      : meeting.summary_state === "failed"
+                        ? "Retry summary"
+                        : "Generate summary"}
+                </Button>
+              </div>
+            </div>
+          </section>
+          {processing && (
+            <p className="processing-notice" role="status">
+              {interrupted
+                ? "Processing was interrupted. Recover the unfinished work before retrying."
+                : "Processing is in progress. Saved results will appear here; you can return after a refresh."}
+            </p>
+          )}
+          {interrupted && (
             <Button
               variant="secondary"
               size="compact"
@@ -352,328 +538,354 @@ export function MeetingDetail({
               Recover interrupted work
             </Button>
           )}
-        </div>
-        {evidence?.jobs.length ? (
-          <p className="mb-3 text-xs [overflow-wrap:anywhere] text-muted">
-            {evidence.jobs
-              .filter((j) => j.stage !== "question")
-              .map((j) => `${j.stage}: ${j.attempts}/3 attempts`)
-              .join(" · ")}
-          </p>
-        ) : null}
-        <div
-          className="my-[25px] flex gap-5 border-b border-line"
-          role="tablist"
-          aria-label="Meeting content"
-        >
-          {(["summary", "transcript", "questions"] as const).map((t) => (
-            <button
-              role="tab"
-              id={`tab-${t}`}
-              tabIndex={tab === t ? 0 : -1}
-              onKeyDown={(event) => {
-                const tabs = ["summary", "transcript", "questions"] as const;
-                const index = tabs.indexOf(t);
-                const next =
-                  event.key === "ArrowRight"
-                    ? tabs[(index + 1) % 3]
-                    : event.key === "ArrowLeft"
-                      ? tabs[(index + 2) % 3]
-                      : event.key === "Home"
-                        ? tabs[0]
-                        : event.key === "End"
-                          ? tabs[2]
-                          : null;
-                if (next) {
-                  event.preventDefault();
-                  setTab(next);
-                  document.getElementById(`tab-${next}`)?.focus();
-                }
-              }}
-              aria-selected={tab === t}
-              aria-controls={`panel-${t}`}
-              key={t}
-              className={`inline-flex cursor-pointer touch-manipulation items-center justify-center rounded-none border-x-0 border-t-0 border-b-2 bg-transparent px-0 py-2.5 text-xs font-semibold capitalize focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[#00bff3] enabled:hover:brightness-94 disabled:cursor-not-allowed disabled:opacity-48 ${tab === t ? "border-purple text-purple" : "border-transparent text-muted"}`}
-              onClick={() => setTab(t)}
-            >
-              {t === "questions" ? "Ask AI" : t}
-            </button>
-          ))}
-        </div>
-        {!evidence ? (
-          <p className="mb-3" role="status">
-            Loading meeting evidence…
-          </p>
-        ) : (
+          {!!evidence?.jobs.length && (
+            <details className="processing-details">
+              <summary>Processing history</summary>
+              <ul>
+                {evidence.jobs.map((job) => (
+                  <li key={job.job_key}>
+                    {job.stage}: {job.status} · {job.attempts}/3 attempts
+                    {job.error_code
+                      ? ` · ${job.error_code.replaceAll("_", " ")}`
+                      : ""}
+                    {job.retry_after && (
+                      <>
+                        {" "}
+                        · Retry after{" "}
+                        {new Date(job.retry_after).toLocaleTimeString()}
+                      </>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
           <div
+            className="meeting-tabs"
+            role="tablist"
+            aria-label="Meeting content"
+          >
+            {(["summary", "transcript", "questions"] as const).map((t) => (
+              <button
+                role="tab"
+                id={`tab-${t}`}
+                tabIndex={tab === t ? 0 : -1}
+                aria-selected={tab === t}
+                aria-controls={`panel-${t}`}
+                key={t}
+                onKeyDown={(event) => {
+                  const tabs = ["summary", "transcript", "questions"] as const;
+                  const index = tabs.indexOf(t);
+                  const next =
+                    event.key === "ArrowRight"
+                      ? tabs[(index + 1) % 3]
+                      : event.key === "ArrowLeft"
+                        ? tabs[(index + 2) % 3]
+                        : event.key === "Home"
+                          ? tabs[0]
+                          : event.key === "End"
+                            ? tabs[2]
+                            : null;
+                  if (next) {
+                    event.preventDefault();
+                    setTab(next);
+                    document.getElementById(`tab-${next}`)?.focus();
+                  }
+                }}
+                onClick={() => setTab(t)}
+              >
+                {t === "questions"
+                  ? "Ask AI"
+                  : t === "summary"
+                    ? "Summary"
+                    : "Transcript"}
+                {t === "transcript" && hasTranscript && (
+                  <span>{evidence?.segments.length}</span>
+                )}
+              </button>
+            ))}
+          </div>
+          <div
+            className="meeting-panel"
+            key={tab}
             role="tabpanel"
             id={`panel-${tab}`}
             aria-labelledby={`tab-${tab}`}
+            tabIndex={0}
           >
-            {tab === "summary" &&
-              (evidence.summary ? (
-                <>
-                  <h3 className="mb-2 text-base font-semibold">Overview</h3>
-                  <ul className="m-0 mb-6 list-none p-0">
-                    {fact(evidence.summary.overview, "overview")}
-                  </ul>
-                  <h3 className="mb-2 text-base font-semibold">Topics</h3>
-                  <ul className="m-0 mb-6 list-none p-0">
-                    {evidence.summary.topics.map(fact)}
-                  </ul>
-                  <h3 className="mb-2 text-base font-semibold">Decisions</h3>
-                  {evidence.summary.decisions.length ? (
-                    <ul className="m-0 mb-6 list-none p-0">
-                      {evidence.summary.decisions.map(fact)}
-                    </ul>
-                  ) : (
-                    <p className="mb-3 text-xs [overflow-wrap:anywhere] text-muted">
-                      No explicit decisions found.
-                    </p>
-                  )}
-                </>
-              ) : (
-                <p className="mb-3 px-7 py-[58px] text-center text-muted">
-                  Your summary will appear after a recording is transcribed and
-                  summarized.
-                </p>
-              ))}
-            {tab === "transcript" &&
-              (evidence.segments.length ? (
-                <div>
-                  <label className="field-label mb-5">
-                    Search transcript
-                    <input
-                      className="field"
-                      type="search"
-                      value={transcriptQuery}
-                      onChange={(e) => setTranscriptQuery(e.target.value)}
-                      placeholder="Find a moment in this meeting…"
-                    />
-                  </label>
-                  {!evidence.segments.some((s) =>
-                    s.text
-                      .toLowerCase()
-                      .includes(transcriptQuery.toLowerCase()),
-                  ) && (
-                    <p className="text-sm text-muted">
-                      No matching transcript segments.
-                    </p>
-                  )}
-                  <ol className="m-0 list-none p-0">
-                    {evidence.segments
-                      .filter((s) =>
-                        s.text
-                          .toLowerCase()
-                          .includes(transcriptQuery.toLowerCase()),
-                      )
-                      .map((s) => (
-                        <li className="mb-4 flex items-start gap-3" key={s.id}>
-                          <button
-                            className="mt-[3px] inline-flex shrink-0 cursor-pointer touch-manipulation items-center justify-center rounded border-0 bg-[#163640] px-[7px] py-[3px] text-[10px] font-semibold text-purple focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[#00bff3] enabled:hover:brightness-94 disabled:cursor-not-allowed disabled:opacity-48"
-                            onClick={() => seek(s.id)}
-                            aria-label={`Play transcript at ${time(s.start_seconds)}`}
-                          >
-                            {time(s.start_seconds)}
-                          </button>
-                          <div>
-                            {s.speaker && <strong>{s.speaker}</strong>}
-                            <p className="m-0 text-xs">{s.text}</p>
-                          </div>
-                        </li>
-                      ))}
-                  </ol>
-                </div>
-              ) : (
-                <p className="mb-3 px-7 py-[58px] text-center text-muted">
-                  No transcript yet. Speaker identities will remain blank unless
-                  verified.
-                </p>
-              ))}
-            {tab === "questions" && (
+            {!evidence ? (
+              <EvidenceEmpty title="Loading meeting evidence">
+                Retrieving saved transcript, notes, and sources.
+              </EvidenceEmpty>
+            ) : (
               <>
-                <p className="mb-3 text-xs [overflow-wrap:anywhere] text-muted">
-                  Answers use this meeting only. Sources open the original
-                  recording moment.
-                </p>
-                {evidence.questions.map((q) => (
-                  <article
-                    className="mb-5 border-b border-line py-[15px]"
-                    key={q.id}
-                  >
-                    <h3 className="mb-2 text-[13px] font-semibold">
-                      {q.question}
-                    </h3>
-                    <p className="mb-3 text-xs">{q.answer.answer}</p>
-                    {sources(q.answer.source_segment_ids)}
-                  </article>
-                ))}
-                <form onSubmit={(e) => void ask(e)}>
-                  <label className="block text-[11px] text-muted">
-                    Ask about this meeting
-                    <textarea
-                      className="mt-2 mb-3 block min-h-[90px] w-full touch-manipulation resize-y rounded-[7px] border border-line bg-surface px-3 py-[11px] text-ink placeholder:text-[#9295a3] focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[#00bff3]"
-                      name="question"
-                      required
-                      maxLength={2000}
-                      onChange={() => {
-                        questionId.current = null;
-                      }}
-                      placeholder="What did we decide, and who is doing what?"
-                    />
-                  </label>
-                  <Button
-                    disabled={
-                      !!busy ||
-                      running ||
-                      meeting.transcription_state !== "ready"
-                    }
-                  >
-                    {busy === "question" ? "Finding evidence…" : "Ask meeting"}
-                  </Button>
-                </form>
+                {tab === "summary" &&
+                  (evidence.summary ? (
+                    <div className="summary-content">
+                      <section className="prism-surface">
+                        <p className="eyebrow ai-label">
+                          AI SYNTHESIS · LINKED TO EVIDENCE
+                        </p>
+                        <h2>The conversation, distilled.</h2>
+                        <EvidenceFact
+                          item={evidence.summary.overview}
+                          segments={evidence.segments}
+                          onOpen={openEvidence}
+                        />
+                      </section>
+                      <div className="section-heading">
+                        <h3>Key topics</h3>
+                        <span>{evidence.summary.topics.length} topics</span>
+                      </div>
+                      {evidence.summary.topics.length ? (
+                        <ol className="topic-list">
+                          {evidence.summary.topics.map((item, index) => (
+                            <li key={index}>
+                              <span className="topic-index">
+                                {String(index + 1).padStart(2, "0")}
+                              </span>
+                              <EvidenceFact
+                                item={item}
+                                segments={evidence.segments}
+                                onOpen={openEvidence}
+                              />
+                            </li>
+                          ))}
+                        </ol>
+                      ) : (
+                        <p className="rail-empty">
+                          No topics were identified in the saved summary.
+                        </p>
+                      )}
+                      <p className="evidence-footnote">
+                        AI notes can miss nuance. Open a timestamp to check the
+                        original evidence.
+                      </p>
+                    </div>
+                  ) : (
+                    <EvidenceEmpty
+                      title={
+                        summaryBusy
+                          ? "Connecting the key points"
+                          : hasTranscript
+                            ? "Your transcript is ready for synthesis"
+                            : "Every insight starts with evidence"
+                      }
+                      processing={summaryBusy}
+                    >
+                      {summaryBusy
+                        ? "Generating a structured overview, topics, decisions, and actions from your stored transcript."
+                        : hasTranscript
+                          ? "Select Generate summary above to turn the stored transcript into notes with source links."
+                          : "Import a real recording, generate its transcript, then create a summary. Demo capture never creates AI content."}
+                    </EvidenceEmpty>
+                  ))}
+                {tab === "transcript" &&
+                  (hasTranscript ? (
+                    <div>
+                      <div className="section-heading">
+                        <h2>Conversation timeline</h2>
+                        <span>{evidence.segments.length} segments</span>
+                      </div>
+                      <label className="field-label mb-5">
+                        Search transcript
+                        <input
+                          className="field"
+                          type="search"
+                          value={transcriptQuery}
+                          onChange={(e) => setTranscriptQuery(e.target.value)}
+                          placeholder="Find a word or a moment…"
+                        />
+                      </label>
+                      {!meeting.recording_ready && (
+                        <p className="evidence-footnote">
+                          Transcript evidence is available. No recording is
+                          attached for playback.
+                        </p>
+                      )}
+                      {!filteredSegments.length && (
+                        <p className="rail-empty" role="status">
+                          No matching transcript segments.
+                        </p>
+                      )}
+                      <ol className="transcript-timeline">
+                        {filteredSegments.map((segment) => (
+                          <li
+                            id={`segment-${segment.id}`}
+                            tabIndex={-1}
+                            className={
+                              activeSegment === segment.id
+                                ? "segment-active"
+                                : ""
+                            }
+                            key={segment.id}
+                          >
+                            <button
+                              className="timeline-time"
+                              type="button"
+                              onClick={() => seek(segment.id)}
+                              aria-label={`${meeting.recording_ready ? "Seek recording" : "Select evidence"} at ${time(segment.start_seconds)}`}
+                            >
+                              {time(segment.start_seconds)}
+                            </button>
+                            <div>
+                              {segment.speaker && (
+                                <p className="speaker-label">
+                                  {segment.speaker}
+                                </p>
+                              )}
+                              <p>{segment.text}</p>
+                              {activeSegment === segment.id && (
+                                <span className="selected-evidence-label">
+                                  Selected evidence
+                                </span>
+                              )}
+                            </div>
+                          </li>
+                        ))}
+                      </ol>
+                    </div>
+                  ) : (
+                    <EvidenceEmpty
+                      title={
+                        transcriptBusy
+                          ? "Listening for the details"
+                          : "The conversation belongs here"
+                      }
+                      processing={transcriptBusy}
+                    >
+                      {transcriptBusy
+                        ? "Transcribing your real recording. Timestamps will appear with the saved segments."
+                        : meeting.recording_ready
+                          ? "Select Generate transcript above to transcribe your attached recording."
+                          : "Attach a real recording first. Timestamps and speaker labels are shown only when present in stored evidence."}
+                    </EvidenceEmpty>
+                  ))}
+                {tab === "questions" && (
+                  <div className="ask-workspace">
+                    <div className="ask-intro">
+                      <span className="intelligence-mark" aria-hidden="true">
+                        ◇
+                      </span>
+                      <div>
+                        <p className="eyebrow ai-label">EVIDENCE ASSISTANT</p>
+                        <h2>Ask the conversation.</h2>
+                        <p>
+                          Answers use only this meeting. Every supported answer
+                          links back to stored evidence.
+                        </p>
+                      </div>
+                    </div>
+                    {!hasTranscript && (
+                      <p className="processing-notice">
+                        No transcript evidence yet. Generate a transcript from a
+                        real recording to ask questions.
+                      </p>
+                    )}
+                    <form
+                      className="question-composer"
+                      onSubmit={(e) => void ask(e)}
+                    >
+                      <label className="field-label">
+                        Ask about this meeting
+                        <textarea
+                          className="field"
+                          name="question"
+                          required
+                          maxLength={2000}
+                          disabled={!hasTranscript || !!busy || running}
+                          onChange={() => {
+                            questionId.current = null;
+                          }}
+                          placeholder="What did we decide, and what is still unresolved?"
+                        />
+                      </label>
+                      <div className="composer-footer">
+                        <span>
+                          {hasTranscript
+                            ? `${evidence.segments.length} source segments available`
+                            : "Waiting for evidence"}
+                        </span>
+                        <Button
+                          disabled={
+                            !!busy ||
+                            running ||
+                            !hasTranscript ||
+                            meeting.transcription_state !== "ready"
+                          }
+                        >
+                          {busy === "question"
+                            ? "Finding evidence…"
+                            : "Ask meeting"}
+                        </Button>
+                      </div>
+                    </form>
+                    {busy === "question" && (
+                      <p className="processing-notice" role="status">
+                        Finding an answer in this meeting’s evidence…
+                      </p>
+                    )}
+                    <div className="answers-list">
+                      {evidence.questions.map((q) => (
+                        <article className="answer-card" key={q.id}>
+                          <h3>{q.question}</h3>
+                          <p
+                            className={`answer-support ${q.answer.supported ? "ai-label" : "text-muted"}`}
+                          >
+                            {q.answer.supported
+                              ? "Answer with sources"
+                              : "Insufficient meeting evidence"}
+                          </p>
+                          <p className="answer-text">{q.answer.answer}</p>
+                          {sources(q.answer.source_segment_ids)}
+                        </article>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </>
             )}
           </div>
-        )}
-        <div className="mt-[30px] border-t border-line pt-[15px] text-xs">
-          {confirmDelete ? (
-            <>
-              <p className="mb-3">
-                Delete this meeting, its recording, transcript, and notes?
-              </p>
-              <Button
-                className="mr-2 text-[11px]"
-                variant="danger"
-                disabled={!!busy}
-                onClick={() => void remove()}
-              >
-                Delete meeting
-              </Button>
-              <Button
-                className="mr-2 text-[11px]"
-                variant="secondary"
-                onClick={() => setConfirmDelete(false)}
-              >
-                Cancel
-              </Button>
-            </>
-          ) : (
-            <Button
-              className="mr-2 text-[11px]"
-              variant="text"
-              onClick={() => setConfirmDelete(true)}
-            >
-              Delete meeting…
-            </Button>
-          )}
-        </div>
-      </div>
-      <aside className="detail-aside" aria-label="Action items and annotations">
-        <p className="eyebrow mb-5">NEXT STEPS</p>
-        <h2 className="mb-4 text-sm font-semibold">Action items</h2>
-        {!evidence ? (
-          <p className="text-xs text-muted" role="status">
-            Loading action items…
-          </p>
-        ) : evidence.actions.length ? (
-          <div>
-            {evidence.actions.length ? (
-              evidence.actions.map((item) => (
-                <form
-                  className="mb-3 rounded-lg border border-line p-[15px]"
-                  key={item.id}
-                  onSubmit={(e) => void saveAction(item, e)}
-                >
-                  <label className="block text-[11px] text-muted">
-                    Task
-                    <input
-                      className="w-full touch-manipulation rounded-[7px] border border-line bg-surface p-[7px] text-xs text-ink placeholder:text-[#9295a3] focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[#00bff3]"
-                      name="text"
-                      required
-                      maxLength={1000}
-                      defaultValue={item.text}
-                    />
-                  </label>
-                  <div className="my-2.5 grid grid-cols-2 gap-2.5">
-                    <label className="block text-[11px] text-muted">
-                      Owner
-                      <input
-                        className="w-full touch-manipulation rounded-[7px] border border-line bg-surface p-[7px] text-xs text-ink placeholder:text-[#9295a3] focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[#00bff3]"
-                        name="owner"
-                        maxLength={160}
-                        defaultValue={item.owner || ""}
-                        placeholder="Not stated"
-                      />
-                    </label>
-                    <label className="block text-[11px] text-muted">
-                      Deadline as stated
-                      <input
-                        className="w-full touch-manipulation rounded-[7px] border border-line bg-surface p-[7px] text-xs text-ink placeholder:text-[#9295a3] focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[#00bff3]"
-                        name="due_date"
-                        maxLength={160}
-                        defaultValue={item.due_date || ""}
-                        placeholder="Not stated"
-                      />
-                    </label>
-                  </div>
-                  <label className="mb-2 flex items-center gap-2 text-[11px] text-muted">
-                    <input
-                      className="w-auto touch-manipulation rounded-[7px] border border-line bg-surface p-[7px] text-xs text-ink accent-purple placeholder:text-[#9295a3] focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[#00bff3]"
-                      type="checkbox"
-                      name="completed"
-                      defaultChecked={item.completed}
-                    />
-                    Completed
-                  </label>
-                  {sources(item.source_segment_ids)}
-                  <div className="mt-2.5">
-                    <Button
-                      variant="secondary"
-                      size="small"
-                      disabled={!!busy}
-                      type="submit"
-                    >
-                      Save action
-                    </Button>
-                  </div>
-                </form>
-              ))
+          <div className="meeting-footer">
+            {confirmDelete ? (
+              <>
+                <p>
+                  Delete this meeting, its recording, transcript, and notes?
+                </p>
+                <div className="mt-3 flex gap-2">
+                  <Button
+                    variant="danger"
+                    size="small"
+                    disabled={!!busy}
+                    onClick={() => void remove()}
+                  >
+                    Delete meeting
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="small"
+                    onClick={() => setConfirmDelete(false)}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </>
             ) : (
-              <p className="mb-3 text-xs [overflow-wrap:anywhere] text-muted">
-                No explicit action items found.
-              </p>
+              <Button variant="text" onClick={() => setConfirmDelete(true)}>
+                Delete meeting…
+              </Button>
             )}
           </div>
-        ) : (
-          <div className="surface-card p-5 text-xs leading-relaxed text-muted">
-            No action items yet. Evidence-backed tasks will appear after a real
-            meeting is transcribed and summarized.
-          </div>
-        )}
-        <h2 className="mt-8 mb-4 text-sm font-semibold">Annotations</h2>
-        <div className="surface-card p-5 text-xs leading-relaxed text-muted">
-          No annotations yet. Recording highlights will be available in a later
-          checkpoint.
         </div>
-        <h2 className="mt-8 mb-4 text-sm font-semibold">Meeting information</h2>
-        <dl className="grid gap-4 text-xs">
-          <div>
-            <dt className="text-muted">Source</dt>
-            <dd className="mt-1 break-all">
-              {meeting.meeting_url || "Demo meeting · no external link"}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-muted">Transcript</dt>
-            <dd className="mt-1 capitalize">{meeting.transcription_state}</dd>
-          </div>
-          <div>
-            <dt className="text-muted">Summary</dt>
-            <dd className="mt-1 capitalize">{meeting.summary_state}</dd>
-          </div>
-        </dl>
-      </aside>
+        <IntelligenceRail
+          evidence={evidence}
+          busy={busy}
+          onSave={saveAction}
+          onOpen={openEvidence}
+          selectedSegment={selectedSegment}
+          meeting={meeting}
+        />
+      </div>
     </div>
   );
 }
