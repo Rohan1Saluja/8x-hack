@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { CSSProperties } from "react";
 import { SignalIcon, SignalMotif } from "@/components/ui/signal";
 
 export function LandingPage({ signInAvailable }: { signInAvailable: boolean }) {
@@ -11,6 +12,7 @@ export function LandingPage({ signInAvailable }: { signInAvailable: boolean }) {
         </Link>
         <div className="landing-nav-links">
           <a href="#how-it-works">The experience</a>
+          <a href="#post-meeting-intelligence">After the meeting</a>
           <a href="#built-on-evidence">Built on evidence</a>
         </div>
         <a className="landing-signin" href={start}>
@@ -75,7 +77,12 @@ export function LandingPage({ signInAvailable }: { signInAvailable: boolean }) {
               {Array.from({ length: 55 }, (_, i) => (
                 <i
                   key={i}
-                  style={{ height: `${14 + ((i * 17 + i * i) % 44)}px` }}
+                  style={
+                    {
+                      height: `${14 + ((i * 17 + i * i) % 44)}px`,
+                      "--beat": `${(i % 7) * 80}ms`,
+                    } as CSSProperties
+                  }
                 />
               ))}
             </div>
@@ -212,6 +219,124 @@ export function LandingPage({ signInAvailable }: { signInAvailable: boolean }) {
             </div>
           </li>
         </ul>
+      </section>
+      <section
+        id="post-meeting-intelligence"
+        className="landing-intelligence"
+        aria-labelledby="landing-intel-heading"
+      >
+        <div className="landing-intel-heading landing-section-heading">
+          <p className="eyebrow ai-label">
+            <SignalIcon /> POST-MEETING INTELLIGENCE
+          </p>
+          <h2 id="landing-intel-heading">
+            After the meeting is where
+            <br />
+            <span>the intelligence begins.</span>
+          </h2>
+          <p>
+            The call ends. The context stays. Turn a conversation into a clear
+            next step—with the original words always within reach.
+          </p>
+        </div>
+        <div className="landing-intel-stage">
+          <div className="landing-intel-stage-label">
+            <span>
+              <span className="status-dot" /> ONE CONVERSATION. SEVEN WAYS
+              FORWARD.
+            </span>
+            <span className="sample-tag">ILLUSTRATIVE WORKFLOW</span>
+          </div>
+          <ol className="landing-intel-flow">
+            {[
+              [
+                "01",
+                "Transcript",
+                "Keep the original words.",
+                "“Let’s ship transcript review first. Sharing can follow.”",
+                "The conversation, timestamped",
+                "source",
+              ],
+              [
+                "02",
+                "Summary",
+                "See the shape of the meeting.",
+                "A focused release, built around transcript review and evidence.",
+                "The essentials, structured",
+                "summary",
+              ],
+              [
+                "03",
+                "Decisions",
+                "Know what was agreed.",
+                "Prioritize transcript review before sharing.",
+                "Direction you can revisit",
+                "decision",
+              ],
+              [
+                "04",
+                "Action items",
+                "Make the next move clear.",
+                "Review the onboarding copy",
+                "Editable tasks · owners when stated",
+                "action",
+              ],
+              [
+                "05",
+                "Ask AI",
+                "Ask the follow-up question.",
+                "What are we shipping first?",
+                "Answers grounded in this meeting",
+                "ask",
+              ],
+              [
+                "06",
+                "Evidence",
+                "Go straight to the source.",
+                "Open the cited words. Jump to that recording moment.",
+                "Real segments, traceable answers",
+                "evidence",
+              ],
+              [
+                "07",
+                "Search",
+                "Bring the context back.",
+                "Find the meeting. Pick up the thread.",
+                "Knowledge beyond a single call",
+                "search",
+              ],
+            ].map(([number, title, headline, copy, caption, kind]) => (
+              <li
+                className={`landing-intel-step landing-intel-${kind}`}
+                key={number}
+              >
+                <div className="landing-intel-step-label">
+                  <span>{number}</span>
+                  <h3>{title}</h3>
+                  <span aria-hidden="true">↗</span>
+                </div>
+                <h4>{headline}</h4>
+                <div className="landing-intel-example">
+                  {kind === "source" && <SignalIcon />}
+                  {kind === "action" && (
+                    <span className="landing-intel-checkbox" aria-hidden="true">
+                      □
+                    </span>
+                  )}
+                  {kind === "ask" && <SignalIcon />}
+                  <p>{copy}</p>
+                </div>
+                <p className="landing-intel-caption">{caption}</p>
+              </li>
+            ))}
+          </ol>
+          <div className="landing-intel-footnote">
+            <p>From a useful answer to the moment behind it.</p>
+            <Link href="/demo" className="text-link">
+              Explore the scripted demo <span aria-hidden="true">↗</span>
+            </Link>
+          </div>
+        </div>
       </section>
       <section className="landing-close">
         <SignalIcon />
