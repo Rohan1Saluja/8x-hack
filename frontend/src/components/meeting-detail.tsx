@@ -941,7 +941,7 @@ export function MeetingDetail({
                       <label className="field-label">
                         Ask about this meeting
                         <textarea
-                          className="field"
+                          className="field focus:outline-none! focus:ring-0! focus:shadow-none! focus:border-transparent!"
                           name="question"
                           ref={questionInput}
                           required
