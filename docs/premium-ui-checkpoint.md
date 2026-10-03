@@ -116,7 +116,7 @@ request payloads and failure behavior. Stop the harness with Ctrl+C.
 - `frontend/tests/visual-preview.mjs`
 - This report and three screenshots under `docs/ui-polish/`.
 
-## Capture handoff
+## Capture status
 
 Read AGENTS.md, docs/agent-capture.md and CAPTURE-TEST.md before changes. Existing
 `.agent-logs` entries are immutable and unchanged. There is no preceding delivered
@@ -127,10 +127,13 @@ exchange in this fresh conversation available to append.
   `2026-10-03T06:18:23+05:30`.
 - Actual selected model: `GPT-6 ASTRA`, explicitly confirmed by the user in this
   turn's model-selection question. This is user confirmation, not routing proof.
-- The final response must be delivered before capture. Persist this exact prompt
-  and delivered final at the next turn/session boundary with the real UTC copy time
-  and the existing recorder, then commit via GitHub and read back exact bytes.
-  Do not pre-log a drafted response or reconstruct old exchanges from summaries.
+- The implementation prompt and delivered final response are now captured in
+  `.agent-logs/2026-10-03_00-48-23_97ebda4f-4147-4e62-9157-06bec70c780f.md`.
+  Response timestamp `2026-10-03T01:37:38Z` is the actual UTC observation/copy time during
+  finalization, not an invented delivery time. See CAPTURE-TEST.md for the timing
+  basis, screenshot-reference scope and current close-out limitation.
+- The current `Finalize capture` acknowledgement is not included before delivery.
+  No drafted response or historical exchange was fabricated.
 - No automatic or complete capture claim. Existing historical/after-timer gaps and
   the requirement for operator close-out remain as documented in CAPTURE-TEST.md.
 
