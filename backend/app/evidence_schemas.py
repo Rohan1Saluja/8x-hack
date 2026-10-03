@@ -2,6 +2,7 @@ from uuid import UUID
 
 from pydantic import Field, field_validator, model_validator
 
+from app.evidence_errors import EvidenceReason, EvidenceValidationError
 from app.schemas import StrictModel
 
 
@@ -74,7 +75,7 @@ def validate_evidence(value: Summary | Answer, segments: list[dict]):
     valid_ids = {str(segment["id"]) for segment in segments}
     if isinstance(value, Answer):
         if value.supported and (not value.answer.strip() or not value.source_segment_ids):
-            raise ValueError("Supported answers require evidence")
+            raise EvidenceValidationError(EvidenceReason.MISSING_SOURCES)
         if not value.supported:
             value.answer = (
                 "This meeting does not contain enough information to answer that question."
@@ -84,26 +85,46 @@ def validate_evidence(value: Summary | Answer, segments: list[dict]):
     else:
         items = [value.overview, *value.topics, *value.decisions, *value.action_items]
         if len(items) > 100:
-            raise ValueError("Too many summary items")
+            raise EvidenceValidationError(EvidenceReason.TOO_MANY_ITEMS)
         for item in items:
             if not item.text.strip() or len(item.text) > 1000 or not item.source_segment_ids:
-                raise ValueError("Summary items require text and evidence")
+                raise EvidenceValidationError(EvidenceReason.INVALID_ITEM)
         for action in value.action_items:
             if any(
                 field is not None and len(field) > 160 for field in [action.owner, action.due_date]
             ):
-                raise ValueError("Action metadata too long")
+                raise EvidenceValidationError(EvidenceReason.ACTION_METADATA)
             source_text = " ".join(
                 s["text"] for s in segments if str(s["id"]) in action.source_segment_ids
             ).casefold()
             for field in [action.owner, action.due_date]:
                 if field is not None and (not field.strip() or field.casefold() not in source_text):
-                    raise ValueError("Owner and deadline must preserve explicit source wording")
+                    raise EvidenceValidationError(EvidenceReason.ACTION_METADATA)
     for item in items:
         if len(item.source_segment_ids) > 30 or not set(item.source_segment_ids) <= valid_ids:
-            raise ValueError("Model referenced an unknown segment")
+            raise EvidenceValidationError(EvidenceReason.UNKNOWN_SEGMENT)
     return value
 
 
 class HighlightCreate(StrictModel):
     segment_id: UUID
+
+
+def omit_unverified_action_metadata(value: Summary, segments: list[dict]):
+    """Unknown optional metadata becomes null; never repair citations or invent values."""
+    for action in value.action_items:
+        source_text = " ".join(
+            s["text"] for s in segments if str(s["id"]) in action.source_segment_ids
+        ).casefold()
+        for name in ("owner", "due_date"):
+            field = getattr(action, name)
+            if field is not None:
+                field = field.strip()
+                setattr(
+                    action,
+                    name,
+                    field
+                    if field and len(field) <= 160 and field.casefold() in source_text
+                    else None,
+                )
+    return value

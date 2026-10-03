@@ -5,6 +5,7 @@ import groq
 from app import db
 from app.config import settings
 from app.errors import AppError, fail
+from app.evidence_errors import EvidenceValidationError
 from app.evidence_schemas import ActionUpdate, QuestionCreate
 from app.integrations import ai, storage
 from app.processing_logging import logger
@@ -42,6 +43,20 @@ def run_failure(meeting_id, job_key, lease, exc, stage="processing_dependency"):
             "Check the Groq key and Free account model access.",
         )
     elif isinstance(exc, ValueError):
+        reason = (
+            exc.reason.value if isinstance(exc, EvidenceValidationError) else "validation_error"
+        )
+        logger.warning(
+            "Meeting evidence validation failed meeting_id=%s stage=%s reason=%s",
+            meeting_id,
+            stage,
+            reason,
+            extra={
+                "meeting_id": str(meeting_id),
+                "processing_stage": stage,
+                "validation_reason": reason,
+            },
+        )
         code, status, message = (
             "invalid_evidence",
             502,
