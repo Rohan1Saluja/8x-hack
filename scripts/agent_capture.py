@@ -59,7 +59,8 @@ def render(payload):
     exchanges = payload["exchanges"]
     require(isinstance(exchanges, list) and bool(exchanges), "A complete real exchange is required")
     models = []
-    previous = None
+    previous_prompt = None
+    previous_response = None
     entries = []
     short = sid[:8]
     fields = {"prompt", "response", "prompt_time", "response_time", "model"}
@@ -68,8 +69,12 @@ def render(payload):
         require(item["model"] in MODELS, "Model must be a confirmed project model; never infer it from role")
         ptime, rtime = utc(item["prompt_time"]), utc(item["response_time"])
         require(ptime <= rtime <= dt.datetime.now(dt.timezone.utc), "Invalid or future event time")
-        require(previous is None or previous <= ptime, "Nonchronological exchanges")
-        previous = rtime
+        # Responses may use delayed observation/copy times under the manual protocol.
+        # Such an observation can follow the next prompt's known submission time.
+        # Keep each timeline ordered without pretending copy times are delivery times.
+        require(previous_prompt is None or previous_prompt <= ptime, "Nonchronological prompts")
+        require(previous_response is None or previous_response <= rtime, "Nonchronological response observations")
+        previous_prompt, previous_response = ptime, rtime
         if item["model"] not in models:
             models.append(item["model"])
         for kind, field, time_field in [("PROMPT", "prompt", "prompt_time"), ("RESPONSE", "response", "response_time")]:

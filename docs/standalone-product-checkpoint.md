@@ -160,10 +160,13 @@ Read AGENTS.md, docs/agent-capture.md and CAPTURE-TEST.md before implementation.
 raw logs are unchanged. No preceding delivered exchange is available in this fresh conversation.
 The current implementation prompt was submitted at **2026-10-03T10:22:13Z**, based on the
 supplied message time. This sprint's final response cannot be recorded before delivery.
-The exact selected model label has not been confirmed by user/UI/runtime metadata; no model
-was inferred from the planned executor. Raw-log publication is pending that confirmation and
-a post-delivery close-out under the manual wrapper protocol. No historical response, hook,
-complete-capture claim, or premature final response entry was fabricated.
+The user subsequently confirmed `GPT-6 Astra (High)`; the recorder label is `GPT-6 ASTRA`.
+Three delivered exchanges are captured verbatim in
+`.agent-logs/2026-10-03_10-22-13_0b12b201-fde3-4918-b24e-7cd236508272.md`:
+the sprint, database migration fix, and capture/model clarification. CAPTURE-TEST.md records
+the exact timing basis and delayed-observation correction. No external reference sources
+were added. Original message links remain unchanged. No automatic or complete capture is
+claimed; the current confirmation/acknowledgement exchange still needs post-delivery close-out.
 
 ## Recommended final checkpoint
 

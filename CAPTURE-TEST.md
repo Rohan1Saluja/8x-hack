@@ -249,3 +249,45 @@ rewritten to force chronological alignment. Operator close-out is still required
 for the final acknowledgement under the existing manual protocol. This finalizes
 the implementation exchange, not automatic or complete coverage of every turn.
 The historical/after-timer capture limitations remain unchanged.
+
+
+## Standalone product sprint and local migration fix — captured after delivery
+
+- Session: `0b12b201-fde3-4918-b24e-7cd236508272` (one actual conversation).
+- Log: `.agent-logs/2026-10-03_10-22-13_0b12b201-fde3-4918-b24e-7cd236508272.md`.
+- Three complete exchanges, copied verbatim from the visible conversation: the
+  standalone product sprint and completion report; the user-reported local
+  `/evidence` database error and migration fix; and `Finalize Capture` with the
+  delivered request to confirm the model. The user-supplied error traceback is
+  part of that user's message, not a collected tool trace.
+- Model: `GPT-6 ASTRA`, normalized from the user's explicit `GPT-6 Astra (High)`
+  confirmation submitted at `2026-10-03T11:33:41Z`. Thinking effort is not recorded
+  separately; no independent routing verification is claimed.
+- Prompt timestamps use the supplied submission events. Response timestamps are
+  actual UTC observation/copy times during this close-out, not delivery times:
+
+| Exchange | Prompt submission (UTC) | Response copied (UTC) |
+| --- | --- | --- |
+| Sprint | 2026-10-03T10:22:13Z | 2026-10-03T11:36:40.758012Z |
+| Local database error | 2026-10-03T11:23:22Z | 2026-10-03T11:38:04.369980Z |
+| Finalize Capture | 2026-10-03T11:29:41Z | 2026-10-03T11:38:04.393547Z |
+
+The recorder's old cross-exchange timing check incorrectly treated response copy
+observations as delivery events. It now validates prompt order and response-copy
+order independently while retaining each pair's own chronological/future-time
+checks. Three added synthetic tests cover delayed copies, decreasing prompts and
+decreasing response observations. All 17 recorder tests pass. The existing four
+raw logs remain byte-identical; no historical omissions were reconstructed.
+
+Validation covers canonical parser round-trip equality of all three prompt/response
+pairs, append-only history, secret/trace patterns, ignored paths and whitespace.
+No system/developer text, reasoning, commentary, tool outputs, file reads or diffs
+were recorded. No external reference sources or citations were added. Original
+repository/artifact links already in the actual messages remain untouched so the
+capture stays verbatim.
+
+The current model-confirmation message and its eventual acknowledgement are not
+included before the acknowledgement is delivered. Operator close-out is still
+required for that final exchange. This records three completed exchanges; it does
+not assert automatic capture, complete future/session coverage or assessment
+acceptance. The original after-timer setup limitation remains unchanged.

@@ -103,3 +103,19 @@ of this fallback is not asserted until the real tests and reviewer requirements 
 
 Frontend/backend production code is untouched; product builds are not evidence of
 capture correctness. Run the capture tests and existing secret check for this change.
+
+
+## Delayed observation timing (2026-10-03 clarification)
+
+A final response copied during a later close-out can have an observation timestamp
+later than the next prompt's known submission timestamp. Those values describe
+different events; requiring one to precede the other discarded valid exchanges.
+The recorder now checks prompt timestamps in conversation order and response
+observation timestamps in copy order independently. Each response must still be
+at or after its own prompt and at or before the current UTC time. Secret/trace,
+model-confirmation, canonical-format, and append-only checks are unchanged.
+
+Always document which values are submission events versus observations in
+CAPTURE-TEST.md. Never present a copy timestamp as delivery time. This correction
+does not change any existing raw log bytes or reconstruct historical omitted
+exchanges. No hooks or automatic capture are introduced.
