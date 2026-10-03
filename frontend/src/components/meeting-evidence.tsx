@@ -1,3 +1,4 @@
+import { SignalMotif } from "@/components/ui/signal";
 import type { ReactNode } from "react";
 import type { Evidence, Segment } from "@/lib/types";
 
@@ -27,6 +28,7 @@ export function SourceLinks({
             key={id}
             onClick={() => onOpen(id)}
             aria-label={`Open evidence at ${timestamp(segment.start_seconds)}`}
+            title={segment.text}
           >
             <span aria-hidden="true">↗</span> {timestamp(segment.start_seconds)}
           </button>
@@ -71,9 +73,7 @@ export function EvidenceEmpty({
       className={`evidence-empty ${processing ? "is-processing" : ""}`}
       role="status"
     >
-      <span className="intelligence-mark" aria-hidden="true">
-        ◇
-      </span>
+      <SignalMotif compact />
       <h3>{title}</h3>
       <p>{children}</p>
     </div>

@@ -219,3 +219,33 @@ time was rewritten to manufacture chronological alignment. The current model-
 confirmation turn also still requires its response to be delivered before capture.
 This records the implementation exchange, not complete coverage of all close-out
 turns. Operator finalization remains necessary under the existing wrapper protocol.
+
+
+## Premium UI presentation checkpoint — captured after delivery
+
+- Session: `97ebda4f-4147-4e62-9157-06bec70c780f`.
+- Log: `.agent-logs/2026-10-03_00-48-23_97ebda4f-4147-4e62-9157-06bec70c780f.md`.
+- Scope: the full user-authored UI/UX checkpoint prompt and its already delivered
+  implementation final response for PR #16, copied from the visible conversation.
+  No system/project context, commentary, reasoning, tool output, diffs or retries
+  were captured. The screenshot's Markdown reference is preserved verbatim;
+  the image bytes are outside this text-only log and remain in the PR's screenshots.
+- Model: `GPT-6 ASTRA`, explicitly confirmed by the user through the previous turn's
+  model-selection question. No independent runtime-routing verification is claimed.
+- Prompt event time: `2026-10-03T00:48:23Z`, from the supplied submission metadata
+  `2026-10-03T06:18:23+05:30`.
+- Response time: `2026-10-03T01:37:38Z`, the actual UTC observation/copy time while preparing
+  the delivered response for capture. Exact delivery time is unavailable; this is
+  not a backdated or claimed delivery timestamp.
+- The completed pair passes the canonical recorder/parser round-trip with exact
+  prompt and response equality. All 14 recorder tests, format/history preservation,
+  secret and whitespace checks passed. Existing raw session entries remain unchanged.
+
+The current close-out message is `Finalize capture`, submitted at
+`2026-10-03T01:35:13Z` (07:05:13 India time). Its response has not yet been delivered
+while this evidence is written, so that close-out pair is not included. Its known
+submission precedes the truthful response-copy timestamp above; no timestamp is
+rewritten to force chronological alignment. Operator close-out is still required
+for the final acknowledgement under the existing manual protocol. This finalizes
+the implementation exchange, not automatic or complete coverage of every turn.
+The historical/after-timer capture limitations remain unchanged.

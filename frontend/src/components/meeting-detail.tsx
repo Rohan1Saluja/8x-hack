@@ -11,6 +11,7 @@ import {
   timestamp as time,
 } from "@/components/meeting-evidence";
 import { IntelligenceRail } from "@/components/intelligence-rail";
+import { SignalIcon, SignalMotif } from "@/components/ui/signal";
 import { Button } from "@/components/ui/button";
 
 import {
@@ -49,6 +50,7 @@ export function MeetingDetail({
   const player = useRef<HTMLVideoElement>(null);
   const pendingSeek = useRef<number | null>(null);
   const questionId = useRef<string | null>(null);
+  const questionInput = useRef<HTMLTextAreaElement>(null);
   const id = initial.id;
   const refresh = useCallback(async () => {
     const [freshMeeting, freshEvidence] = await Promise.all([
@@ -273,7 +275,9 @@ export function MeetingDetail({
     <div className="meeting-intelligence">
       <header className="meeting-header">
         <div className="min-w-0">
-          <p className="eyebrow">MEETING INTELLIGENCE</p>
+          <p className="eyebrow flex items-center gap-2">
+            <SignalIcon /> MEETING INTELLIGENCE
+          </p>
           <h1>{meeting.title}</h1>
           <div className="meeting-meta">
             <time dateTime={meeting.created_at}>
@@ -372,30 +376,28 @@ export function MeetingDetail({
                   }
                 />
               ) : (
-                <div className="player-empty">
-                  <span className="play-symbol" aria-hidden="true">
-                    ▷
-                  </span>
-                  <h2>Your source of truth</h2>
-                  <p>
-                    The original recording stays private. Open it to review the
-                    moments behind your notes.
-                  </p>
-                  <Button
-                    disabled={playbackBusy}
-                    onClick={() => void authorizePlayback()}
-                  >
-                    {playbackBusy
-                      ? "Authorizing playback…"
-                      : "Load private recording"}
-                  </Button>
+                <div className="player-empty has-recording">
+                  <SignalMotif compact />
+                  <div className="recording-invitation">
+                    <h2>Your source of truth</h2>
+                    <p>
+                      The original recording stays private. Open it to review
+                      the moments behind your notes.
+                    </p>
+                    <Button
+                      disabled={playbackBusy}
+                      onClick={() => void authorizePlayback()}
+                    >
+                      {playbackBusy
+                        ? "Authorizing playback…"
+                        : "Load private recording"}
+                    </Button>
+                  </div>
                 </div>
               )
             ) : (
               <div className="player-empty">
-                <span className="play-symbol" aria-hidden="true">
-                  ▷
-                </span>
+                <SignalMotif compact />
                 <h2>
                   {meeting.capture_mode === "demo"
                     ? "A walkthrough, without the recording"
@@ -451,7 +453,7 @@ export function MeetingDetail({
                 </p>
               </div>
             </div>
-            <div className="processing-step">
+            <div className="processing-step" data-active={transcriptBusy}>
               <span
                 className={`pipeline-number ${hasTranscript ? "is-ready" : ""}`}
               >
@@ -485,7 +487,7 @@ export function MeetingDetail({
                 </Button>
               </div>
             </div>
-            <div className="processing-step ai-step">
+            <div className="processing-step ai-step" data-active={summaryBusy}>
               <span
                 className={`pipeline-number ${evidence?.summary ? "is-ready" : ""}`}
               >
@@ -622,7 +624,10 @@ export function MeetingDetail({
                 {tab === "summary" &&
                   (evidence.summary ? (
                     <div className="summary-content">
-                      <section className="prism-surface">
+                      <section className="prism-surface summary-prism">
+                        <div className="summary-symbol" aria-hidden="true">
+                          <SignalIcon />
+                        </div>
                         <p className="eyebrow ai-label">
                           AI SYNTHESIS · LINKED TO EVIDENCE
                         </p>
@@ -633,6 +638,23 @@ export function MeetingDetail({
                           onOpen={openEvidence}
                         />
                       </section>
+                      <div
+                        className="summary-index"
+                        aria-label="Summary contents"
+                      >
+                        <span>
+                          <strong>{evidence.summary.topics.length}</strong> key
+                          topics
+                        </span>
+                        <span>
+                          <strong>{evidence.summary.decisions.length}</strong>{" "}
+                          decisions
+                        </span>
+                        <span>
+                          <strong>{evidence.actions.length}</strong> action
+                          items
+                        </span>
+                      </div>
                       <div className="section-heading">
                         <h3>Key topics</h3>
                         <span>{evidence.summary.topics.length} topics</span>
@@ -734,7 +756,12 @@ export function MeetingDetail({
                                   {segment.speaker}
                                 </p>
                               )}
-                              <p>{segment.text}</p>
+                              <p>
+                                <TranscriptText
+                                  text={segment.text}
+                                  query={transcriptQuery}
+                                />
+                              </p>
                               {activeSegment === segment.id && (
                                 <span className="selected-evidence-label">
                                   Selected evidence
@@ -764,9 +791,7 @@ export function MeetingDetail({
                 {tab === "questions" && (
                   <div className="ask-workspace">
                     <div className="ask-intro">
-                      <span className="intelligence-mark" aria-hidden="true">
-                        ◇
-                      </span>
+                      <SignalMotif compact />
                       <div>
                         <p className="eyebrow ai-label">EVIDENCE ASSISTANT</p>
                         <h2>Ask the conversation.</h2>
@@ -782,6 +807,31 @@ export function MeetingDetail({
                         real recording to ask questions.
                       </p>
                     )}
+                    <div
+                      className="suggested-questions"
+                      aria-label="Suggested questions"
+                    >
+                      {[
+                        "What did we decide?",
+                        "What are the next steps?",
+                        "What is still unresolved?",
+                      ].map((question) => (
+                        <button
+                          type="button"
+                          key={question}
+                          disabled={!hasTranscript || !!busy || running}
+                          onClick={() => {
+                            if (!questionInput.current) return;
+                            questionInput.current.value = question;
+                            questionId.current = null;
+                            questionInput.current.focus();
+                          }}
+                        >
+                          {question}
+                          <span aria-hidden="true">↗</span>
+                        </button>
+                      ))}
+                    </div>
                     <form
                       className="question-composer"
                       onSubmit={(e) => void ask(e)}
@@ -791,6 +841,7 @@ export function MeetingDetail({
                         <textarea
                           className="field"
                           name="question"
+                          ref={questionInput}
                           required
                           maxLength={2000}
                           disabled={!hasTranscript || !!busy || running}
@@ -821,13 +872,22 @@ export function MeetingDetail({
                       </div>
                     </form>
                     {busy === "question" && (
-                      <p className="processing-notice" role="status">
-                        Finding an answer in this meeting’s evidence…
-                      </p>
+                      <div className="thinking-state" role="status">
+                        <span className="thinking-dots" aria-hidden="true">
+                          <i />
+                          <i />
+                          <i />
+                        </span>
+                        <div>
+                          <strong>Following the evidence</strong>
+                          <p>Finding an answer in this meeting’s evidence…</p>
+                        </div>
+                      </div>
                     )}
                     <div className="answers-list">
                       {evidence.questions.map((q) => (
                         <article className="answer-card" key={q.id}>
+                          <p className="eyebrow mb-2">YOU ASKED</p>
                           <h3>{q.question}</h3>
                           <p
                             className={`answer-support ${q.answer.supported ? "ai-label" : "text-muted"}`}
@@ -888,4 +948,23 @@ export function MeetingDetail({
       </div>
     </div>
   );
+}
+
+function TranscriptText({ text, query }: { text: string; query: string }) {
+  const term = query.toLowerCase();
+  if (!term) return text;
+  const result = [];
+  const lower = text.toLowerCase();
+  let cursor = 0;
+  let found = lower.indexOf(term);
+  while (found !== -1) {
+    result.push(text.slice(cursor, found));
+    result.push(
+      <mark key={found}>{text.slice(found, found + term.length)}</mark>,
+    );
+    cursor = found + term.length;
+    found = lower.indexOf(term, cursor);
+  }
+  result.push(text.slice(cursor));
+  return <>{result}</>;
 }
