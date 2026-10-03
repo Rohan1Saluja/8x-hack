@@ -150,7 +150,9 @@ export function Workspace({ name }: { name: string }) {
           </span>
         </div>
         <main className="workspace-main">
-          <header className="mb-7 flex flex-wrap items-center justify-between gap-4">
+          <header
+            className={`${selectedId ? "mb-1" : "mb-7"} flex flex-wrap items-center justify-between gap-4`}
+          >
             <div>
               {selectedId && (
                 <Link
@@ -160,18 +162,17 @@ export function Workspace({ name }: { name: string }) {
                   ← My meetings
                 </Link>
               )}
-              <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-                {selectedId
-                  ? selected?.title || "Meeting details"
-                  : "My meetings"}
-              </h1>
-              <p className="mt-2 text-sm text-muted">
-                {selectedId
-                  ? selected
-                    ? `${date(selected.created_at)} · ${selected.meeting_url ? "Google Meet" : "Demo meeting"}`
-                    : "Your recording, notes and next steps."
-                  : "Stay in the conversation. Keep everything that matters."}
-              </p>
+              {!selectedId && (
+                <>
+                  <p className="eyebrow mb-3">YOUR CONVERSATION LIBRARY</p>
+                  <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+                    My meetings
+                  </h1>
+                  <p className="mt-2 text-sm text-muted">
+                    Conversations become evidence. Evidence becomes clarity.
+                  </p>
+                </>
+              )}
             </div>
             {!selectedId && (
               <Button

@@ -128,18 +128,12 @@ export function LifecycleControls({
   return (
     <section className="lifecycle-panel" aria-label="Notetaker lifecycle">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="eyebrow">DEMO NOTETAKER</p>
-          <p className="mt-1 text-sm">
-            A walkthrough of your meeting, from start to finish.
-          </p>
-        </div>
-        <StatusBadge meeting={meeting} />
+        <p className="eyebrow">
+          SIMULATED CAPTURE · {lifecycleLabels[meeting.lifecycle_state]}
+        </p>
+        <span className="text-xs text-muted">No live bot or media capture</span>
       </div>
-      <p className="mt-3 text-xs leading-relaxed text-muted">
-        Capture simulation only. No bot joins Google Meet, Zoom or Teams. No
-        audio is captured and no AI content is generated.
-      </p>
+
       {meeting.capture_mode === "demo" && (
         <ol className="lifecycle-steps" aria-label="Capture progress">
           {stages.map((s, i) => (
@@ -155,7 +149,7 @@ export function LifecycleControls({
         </ol>
       )}
       {(canStart || canRetry) && (
-        <label className="mt-4 flex items-start gap-3 text-xs leading-relaxed text-muted">
+        <label className="mt-3 flex items-start gap-3 text-xs leading-relaxed text-muted">
           <input
             className="mt-0.5 accent-cyan-400"
             type="checkbox"
@@ -166,7 +160,7 @@ export function LifecycleControls({
           notify participants, obtain their consent, and respect host admission.
         </label>
       )}
-      <div className="mt-4 flex flex-wrap items-center gap-3">
+      <div className="mt-3 flex flex-wrap items-center gap-3">
         {(canStart || canRetry) && (
           <Button
             disabled={!consent || !!busy}
