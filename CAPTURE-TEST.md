@@ -291,3 +291,27 @@ included before the acknowledgement is delivered. Operator close-out is still
 required for that final exchange. This records three completed exchanges; it does
 not assert automatic capture, complete future/session coverage or assessment
 acceptance. The original after-timer setup limitation remains unchanged.
+
+## Landing motion and intelligence checkpoint — captured after delivery
+
+- Session: `ad54e34d-debe-4930-ac5d-a715645c7339`.
+- Log: `.agent-logs/2026-10-03_12-52-14_ad54e34d-debe-4930-ac5d-a715645c7339.md`.
+- Two complete exchanges copied from the visible conversation: the full visual-polish
+  request and delivered PR #19 completion report; `finalize capture` and the delivered
+  request for selected-model confirmation.
+- Model: `GPT-6 ASTRA`, normalized from the user's `GPT-6 Astra (Medium)` confirmation
+  submitted at `2026-10-03T13:10:05Z`. Effort is not a separate raw-log field. Runtime
+  routing is not independently verified.
+- Prompt timestamps use supplied submission events: `2026-10-03T12:52:14Z` and
+  `2026-10-03T13:09:40Z`. Both delivered responses were copied at
+  `2026-10-03T13:11:57.282935Z`. This is an observation/copy time, not delivery time.
+- Canonical parser round-trip confirms the reviewed input and recorded text match.
+  Existing five session logs remain unchanged. No commentary, tools, reasoning,
+  environment data, file contents or diffs are captured as transcript events.
+- This resolves the pending implementation capture described in
+  `docs/landing-motion-checkpoint.md`. No historical conversation is reconstructed.
+
+The current model-confirmation message and this turn's eventual acknowledgement are
+not pre-logged before delivery. Operator close-out remains necessary for that final
+exchange. This records two completed exchanges, not automatic or complete session
+coverage. The original after-timer setup and historical limitations remain unchanged.
