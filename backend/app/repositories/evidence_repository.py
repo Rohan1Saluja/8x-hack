@@ -31,7 +31,7 @@ def list_actions(conn, meeting_id):
 
 def list_questions(conn, meeting_id):
     return conn.execute(
-        "select id,question,answer,created_at from app.questions where meeting_id=%s order by created_at",
+        "select id,question,answer,created_at,model='scripted-demo-not-ai' as is_sample from app.questions where meeting_id=%s order by created_at",
         (meeting_id,),
     ).fetchall()
 

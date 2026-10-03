@@ -63,7 +63,14 @@ def test_full_persisted_demo_without_fabricated_evidence(client, token, postgres
     assert not m["recording_ready"] and m["duration_seconds"] is None
     assert m["transcription_state"] == m["summary_state"] == "pending"
     evidence = client.get(f"/meetings/{m['id']}/evidence", headers=headers).json()
-    assert evidence == {"segments": [], "summary": None, "actions": [], "questions": [], "jobs": []}
+    assert evidence == {
+        "segments": [],
+        "summary": None,
+        "actions": [],
+        "questions": [],
+        "jobs": [],
+        "highlights": [],
+    }
     assert client.get(f"/meetings/{m['id']}/playback", headers=headers).status_code == 409
     with psycopg.connect(postgres) as conn:
         assert conn.execute("select count(*) from app.processing_jobs").fetchone() == (0,)

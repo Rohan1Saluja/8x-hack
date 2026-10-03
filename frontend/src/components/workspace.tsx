@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/signal";
 import { StatusBadge } from "@/components/lifecycle-controls";
 import { api } from "@/lib/api";
-import type { Meeting } from "@/lib/types";
+import type { Meeting, SearchHit } from "@/lib/types";
 
 function date(value: string) {
   return new Date(value).toLocaleString(undefined, {
@@ -26,7 +26,8 @@ function date(value: string) {
 
 export function Workspace({ name }: { name: string }) {
   const router = useRouter();
-  const selectedId = useSearchParams().get("meeting");
+  const params = useSearchParams();
+  const selectedId = params.get("meeting");
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [selected, setSelected] = useState<Meeting | null>(null);
   const [error, setError] = useState("");
@@ -35,6 +36,57 @@ export function Workspace({ name }: { name: string }) {
   const [showCreate, setShowCreate] = useState(false);
   const [demo, setDemo] = useState(false);
   const [query, setQuery] = useState("");
+  const [searchHits, setSearchHits] = useState<SearchHit[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState("");
+  const [searchDone, setSearchDone] = useState("");
+  useEffect(() => {
+    let active = true;
+    const q = query.trim();
+    setSearchHits([]);
+    setSearchError("");
+    setSearchDone("");
+    if (q.length < 2) {
+      setSearching(false);
+      return;
+    }
+    setSearching(true);
+    const timer = setTimeout(() => {
+      void api<SearchHit[]>(`search?q=${encodeURIComponent(q)}`)
+        .then((rows) => {
+          if (active) {
+            setSearchHits(rows);
+            setSearchDone(q);
+          }
+        })
+        .catch((e) => {
+          if (active) setSearchError(e.message);
+        })
+        .finally(() => {
+          if (active) setSearching(false);
+        });
+    }, 250);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [query]);
+  async function seedDemo() {
+    if (locked.current) return;
+    locked.current = true;
+    setBusy(true);
+    setError("");
+    try {
+      const rows = await api<Meeting[]>("demo-seed", "POST");
+      await refresh();
+      router.push(`/workspace?meeting=${rows[0].id}`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to add demo meetings.");
+    } finally {
+      locked.current = false;
+      setBusy(false);
+    }
+  }
   const [filter, setFilter] = useState("all");
   const requestId = useRef<string | null>(null);
   const locked = useRef(false);
@@ -230,6 +282,8 @@ export function Workspace({ name }: { name: string }) {
                   key={selected.id}
                   initial={selected}
                   onChanged={refresh}
+                  initialSegment={params.get("segment")}
+                  initialTab={params.get("tab")}
                 />
               )
             )
@@ -266,12 +320,11 @@ export function Workspace({ name }: { name: string }) {
                       </Button>
                       <button
                         className="text-link"
-                        onClick={() => {
-                          setDemo(true);
-                          setShowCreate(true);
-                        }}
+                        disabled={busy}
+                        onClick={() => void seedDemo()}
                       >
-                        Explore demo <span aria-hidden="true">→</span>
+                        {busy ? "Preparing demo…" : "Add sample meetings"}{" "}
+                        <span aria-hidden="true">→</span>
                       </button>
                     </div>
                   </div>
@@ -380,6 +433,7 @@ export function Workspace({ name }: { name: string }) {
                     ].map(([value, label]) => (
                       <button
                         key={value}
+                        disabled={query.trim().length >= 2}
                         onClick={() => setFilter(value)}
                         aria-pressed={filter === value}
                         className={`filter-button ${filter === value ? "filter-active" : ""}`}
@@ -389,112 +443,183 @@ export function Workspace({ name }: { name: string }) {
                     ))}
                   </div>
                   <label className="sr-only" htmlFor="meeting-search">
-                    Search meeting titles
+                    Search titles, transcripts, decisions, and actions
                   </label>
                   <input
                     id="meeting-search"
                     className="field max-w-xs"
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
-                    placeholder="Search your meetings…"
+                    placeholder="Search conversations & decisions…"
+                    maxLength={160}
                     type="search"
                   />
                 </div>
-                <div className="library-table overflow-hidden">
-                  <div className="library-heading">
-                    <span>MEETING</span>
-                    <span>STATUS</span>
-                    <span className="hidden lg:block">DURATION</span>
-                    <span />
-                  </div>
-                  {loading ? (
-                    <WorkspaceSkeleton />
-                  ) : visible.length ? (
-                    visible.map((m) => (
-                      <Link
-                        href={`/workspace?meeting=${m.id}`}
-                        key={m.id}
-                        className="meeting-row"
-                      >
-                        <span className="flex min-w-0 items-center gap-4">
-                          <span className="meeting-icon" aria-hidden="true">
-                            <SignalIcon />
-                          </span>
-                          <span className="min-w-0">
-                            <strong className="block truncate text-sm font-medium">
-                              {m.title}
-                            </strong>
-                            <span className="mt-1.5 block text-xs text-muted">
-                              {date(m.created_at)} ·{" "}
-                              {m.capture_mode === "demo"
-                                ? "Demo meeting"
-                                : m.meeting_url
-                                  ? "Google Meet"
-                                  : "Imported recording"}
-                            </span>
-                            <span className="mt-1.5 block text-[11px] text-muted">
-                              {m.capture_mode === "demo"
-                                ? "Simulated capture · no recording"
-                                : m.recording_ready
-                                  ? `Transcript: ${m.transcription_state} · Summary: ${m.summary_state}`
-                                  : "Ready to send your demo notetaker"}
-                            </span>
-                          </span>
-                        </span>
-                        <StatusBadge meeting={m} />
-                        <span className="hidden text-xs text-muted lg:block">
-                          {m.duration_seconds === null
-                            ? "—"
-                            : `${Math.floor(m.duration_seconds / 60)}:${Math.floor(
-                                m.duration_seconds % 60,
-                              )
-                                .toString()
-                                .padStart(2, "0")}`}
-                        </span>
-                        <span className="row-arrow" aria-hidden="true">
-                          →
-                        </span>
-                      </Link>
-                    ))
-                  ) : (
-                    <div className="empty-state">
-                      <SignalMotif compact />
-                      <h2 className="mt-5 text-lg font-semibold text-ink">
-                        {meetings.length
-                          ? "No matching meetings"
-                          : "Make room for the conversation"}
-                      </h2>
-                      <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-muted">
-                        {meetings.length
-                          ? "Try another title or change the status filter."
-                          : "Start with a meeting link or a demo. Your recordings, transcripts and notes will live here."}
+                {query.trim().length >= 2 ? (
+                  <div className="search-results" aria-live="polite">
+                    {searching && (
+                      <p className="rail-empty" role="status">
+                        Searching your meeting evidence…
                       </p>
-                      {!!meetings.length && (
-                        <Button
-                          variant="secondary"
-                          size="compact"
-                          className="mt-5"
-                          onClick={() => {
-                            setQuery("");
-                            setFilter("all");
-                          }}
-                        >
-                          Clear filters
-                        </Button>
+                    )}
+                    {searchError && (
+                      <p className="error-notice" role="alert">
+                        {searchError}
+                      </p>
+                    )}
+                    {!searching &&
+                      !searchError &&
+                      searchDone &&
+                      !searchHits.length && (
+                        <div className="empty-state">
+                          <h2>No matching evidence</h2>
+                          <p>
+                            Try another phrase from a title, transcript,
+                            decision, or action.
+                          </p>
+                        </div>
                       )}
-                      {!meetings.length && (
-                        <Button
-                          className="mt-6"
-                          onClick={() => setShowCreate(true)}
-                        >
-                          Create your first meeting
-                        </Button>
-                      )}
+                    {Array.from(
+                      new Set(searchHits.map((h) => h.meeting_id)),
+                    ).map((meetingId) => {
+                      const hits = searchHits.filter(
+                        (h) => h.meeting_id === meetingId,
+                      );
+                      return (
+                        <section key={meetingId} className="search-group">
+                          <h3>{hits[0].title}</h3>
+                          {hits.map((hit, index) => (
+                            <Link
+                              className="search-hit"
+                              key={index}
+                              href={`/workspace?meeting=${meetingId}${hit.segment_id ? `&segment=${hit.segment_id}` : ""}`}
+                            >
+                              <small>
+                                {hit.kind.toUpperCase()}
+                                {hit.start_seconds !== null
+                                  ? ` · ${Math.floor(hit.start_seconds / 60)}:${Math.floor(
+                                      hit.start_seconds % 60,
+                                    )
+                                      .toString()
+                                      .padStart(2, "0")} ↗`
+                                  : " · Open meeting ↗"}
+                              </small>
+                              <p>{hit.snippet}</p>
+                            </Link>
+                          ))}
+                        </section>
+                      );
+                    })}
+                    {!!searchHits.length && (
+                      <p className="rail-empty">
+                        Up to 20 matching meetings · 4 excerpts per meeting ·
+                        Search covers all your meetings.
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="library-table overflow-hidden">
+                    <div className="library-heading">
+                      <span>MEETING</span>
+                      <span>STATUS</span>
+                      <span className="hidden lg:block">DURATION</span>
+                      <span />
                     </div>
-                  )}
-                </div>
+                    {loading ? (
+                      <WorkspaceSkeleton />
+                    ) : visible.length ? (
+                      visible.map((m) => (
+                        <Link
+                          href={`/workspace?meeting=${m.id}`}
+                          key={m.id}
+                          className="meeting-row"
+                        >
+                          <span className="flex min-w-0 items-center gap-4">
+                            <span className="meeting-icon" aria-hidden="true">
+                              <SignalIcon />
+                            </span>
+                            <span className="min-w-0">
+                              <strong className="block truncate text-sm font-medium">
+                                {m.title}
+                              </strong>
+                              <span className="mt-1.5 block text-xs text-muted">
+                                {date(m.created_at)} ·{" "}
+                                {m.demo_seed_key
+                                  ? "Scripted sample"
+                                  : m.capture_mode === "demo"
+                                    ? "Demo meeting"
+                                    : m.meeting_url
+                                      ? "Google Meet"
+                                      : "Imported recording"}
+                              </span>
+                              <span className="mt-1.5 block text-[11px] text-muted">
+                                {m.demo_seed_key
+                                  ? "Sample transcript · decisions · saved answer"
+                                  : m.capture_mode === "demo"
+                                    ? "Simulated capture · no recording"
+                                    : m.recording_ready
+                                      ? `Transcript: ${m.transcription_state} · Summary: ${m.summary_state}`
+                                      : "Ready to send your demo notetaker"}
+                              </span>
+                            </span>
+                          </span>
+                          <StatusBadge meeting={m} />
+                          <span className="hidden text-xs text-muted lg:block">
+                            {m.duration_seconds === null
+                              ? "—"
+                              : `${Math.floor(m.duration_seconds / 60)}:${Math.floor(
+                                  m.duration_seconds % 60,
+                                )
+                                  .toString()
+                                  .padStart(2, "0")}`}
+                          </span>
+                          <span className="row-arrow" aria-hidden="true">
+                            →
+                          </span>
+                        </Link>
+                      ))
+                    ) : (
+                      <div className="empty-state">
+                        <SignalMotif compact />
+                        <h2 className="mt-5 text-lg font-semibold text-ink">
+                          {meetings.length
+                            ? "No matching meetings"
+                            : "Make room for the conversation"}
+                        </h2>
+                        <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-muted">
+                          {meetings.length
+                            ? "Try another title or change the status filter."
+                            : "Start with a meeting link or a demo. Your recordings, transcripts and notes will live here."}
+                        </p>
+                        {!!meetings.length && (
+                          <Button
+                            variant="secondary"
+                            size="compact"
+                            className="mt-5"
+                            onClick={() => {
+                              setQuery("");
+                              setFilter("all");
+                            }}
+                          >
+                            Clear filters
+                          </Button>
+                        )}
+                        {!meetings.length && (
+                          <Button
+                            className="mt-6"
+                            onClick={() => setShowCreate(true)}
+                          >
+                            Create your first meeting
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
                 <p className="mt-4 text-xs text-muted">
-                  Showing {visible.length} of {meetings.length} recent meetings
+                  {query.trim().length >= 2
+                    ? "Searching all stored meeting evidence"
+                    : `Showing ${visible.length} of ${meetings.length} recent meetings`}
                   · Only you can access this library.
                 </p>
               </section>

@@ -27,8 +27,12 @@ import type { ActionItem, Meeting, MeetingEvidence } from "@/lib/types";
 export function MeetingDetail({
   initial,
   onChanged,
+  initialSegment,
+  initialTab,
 }: {
   initial: Meeting;
+  initialSegment?: string | null;
+  initialTab?: string | null;
   onChanged: () => Promise<void>;
 }) {
   const [meeting, setMeeting] = useState(initial);
@@ -36,10 +40,15 @@ export function MeetingDetail({
   const [error, setError] = useState("");
   const [busy, setBusy] = useState("");
   const [tab, setTab] = useState<"summary" | "transcript" | "questions">(
-    "summary",
+    initialSegment
+      ? "transcript"
+      : initialTab === "questions"
+        ? "questions"
+        : "summary",
   );
   const [transcriptQuery, setTranscriptQuery] = useState("");
   const [playback, setPlayback] = useState("");
+  const [audioOnly, setAudioOnly] = useState(false);
   const [activeSegment, setActiveSegment] = useState<string | null>(null);
   const [playbackBusy, setPlaybackBusy] = useState(false);
   const [notice, setNotice] = useState("");
@@ -82,6 +91,19 @@ export function MeetingDetail({
       active = false;
     };
   }, [id]);
+  const openedLink = useRef("");
+  // Deep links select stored evidence only. They do not fetch private playback until a click.
+  useEffect(() => {
+    if (
+      initialSegment &&
+      openedLink.current !== `${id}:${initialSegment}` &&
+      evidence?.segments.some((s) => s.id === initialSegment)
+    ) {
+      openedLink.current = `${id}:${initialSegment}`;
+      setActiveSegment(initialSegment);
+      setTab("transcript");
+    }
+  }, [id, initialSegment, evidence?.segments]);
   const running = evidence?.jobs.some((j) => j.status === "running") || false;
   const processing = busy === "transcribe" || busy === "summarize" || running;
   const hasTranscript = !!evidence?.segments.length;
@@ -185,6 +207,53 @@ export function MeetingDetail({
       onOpen={openEvidence}
     />
   );
+  async function saveHighlight(segmentId: string) {
+    if (operationLock.current) return;
+    operationLock.current = true;
+    setBusy("highlight");
+    setError("");
+    try {
+      await api(`meetings/${id}/highlights`, "POST", { segment_id: segmentId });
+      await refresh();
+      setNotice("Highlight saved to this meeting.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to save highlight.");
+    } finally {
+      operationLock.current = false;
+      setBusy("");
+    }
+  }
+  async function removeHighlight(highlightId: string) {
+    if (operationLock.current) return;
+    operationLock.current = true;
+    setBusy("highlight");
+    setError("");
+    try {
+      await api(`meetings/${id}/highlights/${highlightId}`, "DELETE");
+      await refresh();
+      setNotice("Highlight removed.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to remove highlight.");
+    } finally {
+      operationLock.current = false;
+      setBusy("");
+    }
+  }
+  async function copyLink(segmentId?: string) {
+    const url = new URL("/workspace", window.location.origin);
+    url.searchParams.set("meeting", id);
+    if (segmentId) url.searchParams.set("segment", segmentId);
+    try {
+      await navigator.clipboard.writeText(url.toString());
+      setNotice(
+        "Workspace link copied. Only your signed-in account can open it.",
+      );
+    } catch {
+      setError(
+        "Clipboard unavailable. Copy the meeting URL from your address bar.",
+      );
+    }
+  }
   async function saveAction(
     item: ActionItem,
     event: FormEvent<HTMLFormElement>,
@@ -287,11 +356,13 @@ export function MeetingDetail({
               })}
             </time>
             <span>
-              {meeting.capture_mode === "demo"
-                ? "Simulated capture"
-                : meeting.recording_ready
-                  ? "Imported recording"
-                  : "Meeting link"}
+              {meeting.demo_seed_key
+                ? "Scripted sample"
+                : meeting.capture_mode === "demo"
+                  ? "Simulated capture"
+                  : meeting.recording_ready
+                    ? "Imported recording"
+                    : "Meeting link"}
             </span>
             {meeting.duration_seconds !== null && (
               <span>{time(meeting.duration_seconds)} duration</span>
@@ -318,6 +389,16 @@ export function MeetingDetail({
           </Button>
         </div>
       </header>
+      {meeting.demo_seed_key && (
+        <p className="product-notice">
+          Scripted demo content · Sample transcript, notes, and saved Q&amp;A
+          are authored examples.{" "}
+          {meeting.recording_ready
+            ? "The attached recording is a scripted sample."
+            : "Timeline markers are illustrative; no recording is attached."}{" "}
+          New questions use Groq Free when configured.
+        </p>
+      )}
       <LifecycleControls
         meeting={meeting}
         onChange={(next) => {
@@ -340,14 +421,18 @@ export function MeetingDetail({
           reviewing the available free allowance.
         </p>
       )}
-      <p className="sr-only" role="status">
+      <p className={notice ? "product-notice" : "sr-only"} role="status">
         {notice}
       </p>
       <div className="detail-layout">
         <div className="detail-main">
           <section className="recording-surface" aria-label="Meeting recording">
             <div className="recording-toolbar">
-              <span className="eyebrow">ORIGINAL RECORDING</span>
+              <span className="eyebrow">
+                {meeting.demo_seed_key
+                  ? "SCRIPTED SAMPLE AUDIO"
+                  : "ORIGINAL RECORDING"}
+              </span>
               <span>
                 {meeting.recording_ready
                   ? "Private playback"
@@ -356,25 +441,41 @@ export function MeetingDetail({
             </div>
             {meeting.recording_ready ? (
               playback ? (
-                <video
-                  className="recording-player"
-                  ref={player}
-                  src={playback}
-                  controls
-                  preload="metadata"
-                  aria-label="Private meeting recording"
-                  onLoadedMetadata={() => {
-                    if (player.current && pendingSeek.current !== null) {
-                      player.current.currentTime = pendingSeek.current;
-                      pendingSeek.current = null;
+                <div className="media-stage">
+                  {audioOnly && (
+                    <div className="audio-backdrop" aria-hidden="true">
+                      <SignalMotif compact />
+                      <div>
+                        <span className="eyebrow">
+                          {meeting.demo_seed_key
+                            ? "SCRIPTED VOICE SAMPLE"
+                            : "CONVERSATION AUDIO"}
+                        </span>
+                        <p>The moment behind the insight.</p>
+                      </div>
+                    </div>
+                  )}
+                  <video
+                    className="recording-player"
+                    ref={player}
+                    src={playback}
+                    controls
+                    preload="metadata"
+                    aria-label="Private meeting recording"
+                    onLoadedMetadata={() => {
+                      setAudioOnly(player.current?.videoWidth === 0);
+                      if (player.current && pendingSeek.current !== null) {
+                        player.current.currentTime = pendingSeek.current;
+                        pendingSeek.current = null;
+                      }
+                    }}
+                    onError={() =>
+                      setError(
+                        "Playback link may have expired. Choose Refresh playback link.",
+                      )
                     }
-                  }}
-                  onError={() =>
-                    setError(
-                      "Playback link may have expired. Choose Refresh playback link.",
-                    )
-                  }
-                />
+                  />
+                </div>
               ) : (
                 <div className="player-empty has-recording">
                   <SignalMotif compact />
@@ -399,14 +500,18 @@ export function MeetingDetail({
               <div className="player-empty">
                 <SignalMotif compact />
                 <h2>
-                  {meeting.capture_mode === "demo"
-                    ? "A walkthrough, without the recording"
-                    : "Start with the original conversation"}
+                  {meeting.demo_seed_key
+                    ? "The sample conversation, ready to explore"
+                    : meeting.capture_mode === "demo"
+                      ? "A walkthrough, without the recording"
+                      : "Start with the original conversation"}
                 </h2>
                 <p>
-                  {meeting.capture_mode === "demo"
-                    ? "Capture is simulated. No bot joins, no audio is captured, and no transcript or AI notes are created."
-                    : "A real recording must be imported before transcription. This workspace does not capture live meeting audio."}
+                  {meeting.demo_seed_key
+                    ? "Explore the scripted transcript, decisions, and saved answer below. No audio is attached to this sample."
+                    : meeting.capture_mode === "demo"
+                      ? "Capture is simulated. No bot joins, no audio is captured, and no transcript or AI notes are created."
+                      : "A real recording must be imported before transcription. This workspace does not capture live meeting audio."}
                 </p>
                 <details className="import-help">
                   <summary>How to add a real recording</summary>
@@ -629,7 +734,9 @@ export function MeetingDetail({
                           <SignalIcon />
                         </div>
                         <p className="eyebrow ai-label">
-                          AI SYNTHESIS · LINKED TO EVIDENCE
+                          {meeting.demo_seed_key
+                            ? "SCRIPTED SAMPLE · LINKED TO EVIDENCE"
+                            : "AI SYNTHESIS · LINKED TO EVIDENCE"}
                         </p>
                         <h2>The conversation, distilled.</h2>
                         <EvidenceFact
@@ -762,6 +869,22 @@ export function MeetingDetail({
                                   query={transcriptQuery}
                                 />
                               </p>
+                              <button
+                                className="moment-save"
+                                disabled={
+                                  !!busy ||
+                                  evidence.highlights?.some(
+                                    (h) => h.segment_id === segment.id,
+                                  )
+                                }
+                                onClick={() => void saveHighlight(segment.id)}
+                              >
+                                {evidence.highlights?.some(
+                                  (h) => h.segment_id === segment.id,
+                                )
+                                  ? "◆ Highlight saved"
+                                  : "◇ Save highlight"}
+                              </button>
                               {activeSegment === segment.id && (
                                 <span className="selected-evidence-label">
                                   Selected evidence
@@ -885,7 +1008,7 @@ export function MeetingDetail({
                       </div>
                     )}
                     <div className="answers-list">
-                      {evidence.questions.map((q) => (
+                      {[...evidence.questions].reverse().map((q) => (
                         <article className="answer-card" key={q.id}>
                           <p className="eyebrow mb-2">YOU ASKED</p>
                           <h3>{q.question}</h3>
@@ -893,11 +1016,36 @@ export function MeetingDetail({
                             className={`answer-support ${q.answer.supported ? "ai-label" : "text-muted"}`}
                           >
                             {q.answer.supported
-                              ? "Answer with sources"
+                              ? q.is_sample
+                                ? "Scripted sample answer with sources"
+                                : "Answer with sources"
                               : "Insufficient meeting evidence"}
                           </p>
                           <p className="answer-text">{q.answer.answer}</p>
                           {sources(q.answer.source_segment_ids)}
+                          {q.answer.supported && (
+                            <div className="answer-evidence">
+                              {q.answer.source_segment_ids
+                                .slice(0, 2)
+                                .map((sourceId) => {
+                                  const segment = evidence.segments.find(
+                                    (s) => s.id === sourceId,
+                                  );
+                                  return segment ? (
+                                    <button
+                                      key={sourceId}
+                                      onClick={() => openEvidence(sourceId)}
+                                    >
+                                      <span>
+                                        {time(segment.start_seconds)} · Source
+                                        excerpt ↗
+                                      </span>
+                                      <q>{segment.text}</q>
+                                    </button>
+                                  ) : null;
+                                })}
+                            </div>
+                          )}
                         </article>
                       ))}
                     </div>
@@ -944,6 +1092,8 @@ export function MeetingDetail({
           onOpen={openEvidence}
           selectedSegment={selectedSegment}
           meeting={meeting}
+          onRemoveHighlight={removeHighlight}
+          onCopyLink={copyLink}
         />
       </div>
     </div>

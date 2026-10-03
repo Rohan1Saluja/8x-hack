@@ -7,7 +7,7 @@ from app.config import settings
 from app.errors import AppError, fail
 from app.evidence_schemas import ActionUpdate, QuestionCreate
 from app.integrations import ai, storage
-from app.repositories import evidence_repository
+from app.repositories import discovery_repository, evidence_repository
 from app.services import job_service as jobs
 from app.services import meeting_service
 
@@ -69,12 +69,14 @@ def get_evidence(meeting_id: UUID, owner):
         actions = evidence_repository.list_actions(conn, meeting_id)
         questions = evidence_repository.list_questions(conn, meeting_id)
         progress = evidence_repository.list_jobs(conn, meeting_id)
+        highlights = discovery_repository.list_highlights(conn, meeting_id)
     return {
         "segments": segments,
         "summary": summary["content"] if summary else None,
         "actions": actions,
         "questions": questions,
         "jobs": progress,
+        "highlights": highlights,
     }
 
 

@@ -20,6 +20,8 @@ export function IntelligenceRail({
   onOpen,
   selectedSegment,
   meeting,
+  onRemoveHighlight,
+  onCopyLink,
 }: {
   evidence: MeetingEvidence | null;
   busy: string;
@@ -30,6 +32,8 @@ export function IntelligenceRail({
   onOpen: (id: string) => void;
   selectedSegment?: Segment;
   meeting: Meeting;
+  onRemoveHighlight: (id: string) => Promise<void>;
+  onCopyLink: (segmentId?: string) => Promise<void>;
 }) {
   return (
     <aside className="intelligence-rail" aria-label="Meeting intelligence">
@@ -134,7 +138,7 @@ export function IntelligenceRail({
                   />
                 </label>
                 <label className="field-label">
-                  Deadline as stated
+                  Deadline (stated or manually entered)
                   <input
                     className="field"
                     name="due_date"
@@ -201,16 +205,63 @@ export function IntelligenceRail({
           </p>
         )}
       </section>
-      <details className="meeting-source highlights-preview">
-        <summary>
-          Highlights & sharing{" "}
-          <span className="ml-2 text-[9px]">COMING NEXT</span>
-        </summary>
-        <p>
-          Saving and sharing moments is not available yet. Select a source
-          timestamp to revisit the evidence.
+      <section className="rail-section" aria-label="Saved highlights">
+        <div className="section-heading">
+          <h3>Highlights</h3>
+          <span>{evidence?.highlights?.length ?? 0}</span>
+        </div>
+        {evidence?.highlights?.length ? (
+          evidence.highlights.map((h) => (
+            <article className="highlight-item" key={h.id}>
+              <button
+                className="source-chip"
+                onClick={() => onOpen(h.segment_id)}
+              >
+                ◆ {timestamp(h.start_seconds)} · Open moment
+              </button>
+              <p>{h.text}</p>
+              <div className="highlight-actions">
+                <button
+                  className="text-link"
+                  onClick={() => void onCopyLink(h.segment_id)}
+                >
+                  Copy moment link ↗
+                </button>
+                <button
+                  className="text-link"
+                  disabled={!!busy}
+                  aria-label={`Remove highlight at ${timestamp(h.start_seconds)}`}
+                  onClick={() => void onRemoveHighlight(h.id)}
+                >
+                  Remove
+                </button>
+              </div>
+            </article>
+          ))
+        ) : (
+          <p className="rail-empty">
+            Keep a moment close. Open Transcript and choose Save highlight.
+          </p>
+        )}
+      </section>
+      <section className="rail-section">
+        <div className="section-heading">
+          <h3>Workspace link</h3>
+          <span>OWNER ONLY</span>
+        </div>
+        <p className="rail-empty">
+          A shortcut back to this meeting. The link does not grant anyone access
+          or expose the recording.
         </p>
-      </details>
+        <Button
+          variant="secondary"
+          size="small"
+          className="mt-3"
+          onClick={() => void onCopyLink()}
+        >
+          Copy meeting link ↗
+        </Button>
+      </section>
       <details className="meeting-source">
         <summary>Meeting source</summary>
         <p>

@@ -13,6 +13,7 @@ export type Meeting = {
   transcription_state: "pending" | "running" | "ready" | "failed";
   summary_state: "pending" | "running" | "ready" | "failed";
   failure_code: string | null;
+  demo_seed_key?: string | null;
   recording_ready: boolean;
   duration_seconds: number | null;
   lifecycle_state:
@@ -47,7 +48,23 @@ export type ActionItem = Evidence & {
   due_date: string | null;
   completed: boolean;
 };
+export type Highlight = {
+  id: string;
+  segment_id: string;
+  text: string;
+  start_seconds: number;
+  end_seconds: number;
+};
+export type SearchHit = {
+  meeting_id: string;
+  title: string;
+  kind: string;
+  snippet: string;
+  segment_id: string | null;
+  start_seconds: number | null;
+};
 export type MeetingEvidence = {
+  highlights?: Highlight[];
   segments: Segment[];
   summary: {
     overview: Evidence;
@@ -58,6 +75,7 @@ export type MeetingEvidence = {
   questions: {
     id: string;
     question: string;
+    is_sample?: boolean;
     answer: {
       answer: string;
       supported: boolean;

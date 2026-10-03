@@ -103,3 +103,7 @@ def validate_evidence(value: Summary | Answer, segments: list[dict]):
         if len(item.source_segment_ids) > 30 or not set(item.source_segment_ids) <= valid_ids:
             raise ValueError("Model referenced an unknown segment")
     return value
+
+
+class HighlightCreate(StrictModel):
+    segment_id: UUID
