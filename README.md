@@ -37,13 +37,35 @@ On the first start with an empty volume, Docker creates the compatibility roles 
 docker compose exec db psql -U eightx -d eightx -c "select table_name from information_schema.tables where table_schema = 'app' order by table_name;"
 ```
 
-Expect eight tables. Run `pnpm dev` to start the frontend on :3000 and backend on :8000. `docker compose down` stops the database while retaining its named volume. Initialization scripts only run for a new, empty volume; later migrations must be applied explicitly. If startup fails, inspect `docker compose logs db` before proceeding. Do not delete the volume to fix an error unless its local data is disposable.
+Expect nine tables, including `app.highlights`. Run `pnpm dev` to start the frontend on :3000 and backend on :8000. `docker compose down` stops the database while retaining its named volume. Initialization scripts only run for a new, empty volume; later migrations must be applied explicitly. If startup fails, inspect `docker compose logs db` before proceeding. Do not delete the volume to fix an error unless its local data is disposable.
+
+If an existing local database returns `relation "app.highlights" does not exist`, apply the product-intelligence migration once from the repository root. This preserves existing meetings and recordings.
+
+PowerShell:
+
+```powershell
+Get-Content -Raw .\supabase\migrations\202610030001_product_intelligence.sql | docker compose exec -T db psql -U eightx -d eightx -v ON_ERROR_STOP=1
+```
+
+Git Bash / bash:
+
+```sh
+docker compose exec -T db psql -U eightx -d eightx -v ON_ERROR_STOP=1 < supabase/migrations/202610030001_product_intelligence.sql
+```
+
+Verify the table, then refresh the meeting page; restarting the app is not required:
+
+```sh
+docker compose exec -T db psql -U eightx -d eightx -c "select to_regclass('app.highlights');"
+```
+
+The result must be `app.highlights`. Apply the migration to the database configured by the backend's `DATABASE_URL`; the commands above target the local Compose database. Restarting Docker alone does not migrate an existing volume.
 
 Create one **private** Vercel Blob store in the Vercel dashboard (Storage → Create Storage → Blob → Private). Copy its `BLOB_READ_WRITE_TOKEN` into both local environment files, and later into both Vercel projects. The frontend uses it only in server code to sign private playback URLs; the backend uses it for upload, download, and deletion. Use the same store/token in both places. Do not use a public store or prefix this variable with `NEXT_PUBLIC_`.
 
 No Supabase Storage bucket, storage service-role key, filesystem storage mode, or local recording directory is needed. If configured previously, remove `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `RECORDING_BUCKET`, `RECORDING_STORAGE`, `LOCAL_RECORDINGS_DIR`, and `LOCAL_STORAGE_BASE_URL`. Keep the Supabase connection string only for the production database.
 
-For a fresh production Supabase database, run all files in `supabase/migrations` in filename order. Existing databases need `202610030001_demo_lifecycle.sql` for the demo lifecycle checkpoint. Never rerun already-applied migrations. Old Supabase/local-file recording references are not automatically transferred to Blob; use a new meeting for the first Blob test.
+For a fresh production Supabase database, run all files in `supabase/migrations` in filename order. Existing databases need `202610030001_demo_lifecycle.sql` for the demo lifecycle checkpoint and `202610030001_product_intelligence.sql` for highlights and demo seeds. Apply any missing migration before deploying its backend code. Never rerun already-applied migrations. Old Supabase/local-file recording references are not automatically transferred to Blob; use a new meeting for the first Blob test.
 
 Uploads use unique paths under `development/` or `production/` in that single store. Delete test meetings in the app to remove their development blobs, or clean up `development/` in the Blob dashboard when finished. Sharing the store does not synchronize the two databases: each database still needs its own meeting metadata. If production recording references are copied into a local database, playback/transcription can reuse those files, and deleting the local meeting leaves production blobs intact. Do not delete a production blob while either database still needs it.
 
