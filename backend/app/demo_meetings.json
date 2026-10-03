@@ -1,0 +1,63 @@
+[
+  {
+    "key": "roadmap-v1",
+    "title": "Product roadmap review",
+    "segments": [
+      "Welcome to our product roadmap review. This is a scripted sample conversation. Today we need to decide what belongs in the first release of our meeting workspace.",
+      "Customer interviews point to one problem: people remember the conversation but lose the next step. A searchable transcript and clear action items should come first.",
+      "Decision: we will ship timestamped transcripts, evidence links, and editable action items in the first release. We will defer calendar sync until we validate the core workflow.",
+      "Maya will review the onboarding copy by Friday. The review should explain recording consent and make the difference between sample content and a real recording clear.",
+      "Alex will test citation links and playback before the launch review. Every link must open the correct transcript moment and seek the recording to the same timestamp.",
+      "We have not decided whether external sharing should be public. Until we settle permissions, workspace links will require the owner's sign-in. No delivery date is agreed for public sharing."
+    ],
+    "overview": "The team scoped a focused first release around searchable evidence and clear next steps. Calendar sync is deferred; external sharing remains unresolved.",
+    "overview_sources": [1,2,5],
+    "decisions": [{"text":"Ship timestamped transcripts, evidence links, and editable action items first; defer calendar sync.","sources":[2]}],
+    "actions": [
+      {"text":"Review onboarding copy, including consent and sample-content labels.","owner":"Maya","due_date":"Friday","sources":[3]},
+      {"text":"Test citation links and recording playback before the launch review.","owner":"Alex","due_date":"before the launch review","sources":[4]}
+    ]
+  },
+  {
+    "key":"discovery-v1",
+    "title":"Customer discovery call",
+    "segments":[
+      "This is a scripted customer discovery sample. Our team spends too much time reconstructing decisions after calls. Notes are scattered across documents and chat.",
+      "A timestamp matters more than a polished paragraph. If I can open the exact moment, I can check whether we made a decision or only floated an idea.",
+      "Decision: we will run a pilot with the product team first. We are not committing the whole company or agreeing to a paid plan.",
+      "Nina will collect feedback from the pilot participants next week. We have not settled the success metric yet."
+    ],
+    "overview":"The customer wants traceable decisions and less work reconstructing calls. A product-team pilot is agreed; the success metric remains open.",
+    "overview_sources":[0,1,2,3],
+    "decisions":[{"text":"Run a pilot with the product team before a wider rollout.","sources":[2]}],
+    "actions":[{"text":"Collect pilot participant feedback.","owner":"Nina","due_date":"next week","sources":[3]}]
+  },
+  {
+    "key":"engineering-v1",
+    "title":"Engineering sprint planning",
+    "segments":[
+      "This is a scripted engineering planning sample. The sprint goal is to make the meeting evidence workflow reliable across refreshes and retries.",
+      "Decision: ownership checks are required on every endpoint, including search, highlights, and recording playback. The browser will never choose the owner ID.",
+      "Sam will add two-user isolation tests by Thursday. They should cover a copied meeting link and a highlight that references another meeting's transcript.",
+      "Playback links must remain temporary. We will not put private recording URLs into shared notes. The database migration needs to run before the new backend deploys."
+    ],
+    "overview":"Engineering prioritized durable evidence, owner isolation, and private playback. Tests and migration ordering are explicit release gates.",
+    "overview_sources":[0,1,2,3],
+    "decisions":[{"text":"Require ownership checks for search, highlights, and playback; never accept a client-selected owner.","sources":[1]}],
+    "actions":[{"text":"Add two-user isolation tests for meeting links and highlights.","owner":"Sam","due_date":"Thursday","sources":[2]}]
+  },
+  {
+    "key":"founder-v1",
+    "title":"Founder / investor update",
+    "segments":[
+      "This is a fictional founder update for the demo. The product is being tested as a meeting workspace that connects decisions to their original evidence.",
+      "We do not have verified revenue, retention, or adoption metrics to report. The next milestone is a complete walkthrough with a consented recording.",
+      "Decision: show one coherent workflow in the demo rather than promise unbuilt integrations. Clearly label simulated capture and sample content.",
+      "Riley will prepare the walkthrough script. No deadline was agreed. Public sharing and advanced calendar sync remain outside this release."
+    ],
+    "overview":"The update focuses on a coherent, honest product walkthrough. Business metrics are not available; the team will demonstrate the working evidence flow.",
+    "overview_sources":[0,1,2,3],
+    "decisions":[{"text":"Demonstrate one coherent workflow and label simulated capture and samples clearly.","sources":[2]}],
+    "actions":[{"text":"Prepare the walkthrough script.","owner":"Riley","due_date":null,"sources":[3]}]
+  }
+]

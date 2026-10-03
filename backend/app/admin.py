@@ -7,13 +7,15 @@ from uuid import UUID
 from app.config import settings
 from app.errors import AppError
 from app.integrations.ai import groq_client
-from app.services import budget_service, recording_service
+from app.services import budget_service, demo_recording_service, recording_service
 
 
 def main():
     parser = argparse.ArgumentParser()
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("verify-models")
+    demo_audio = sub.add_parser("attach-demo-recording")
+    demo_audio.add_argument("--meeting-id", type=UUID, required=True)
     recording = sub.add_parser("import-recording")
     recording.add_argument("--meeting-id", type=UUID, required=True)
     recording.add_argument("--file", type=Path, required=True)
@@ -25,6 +27,15 @@ def main():
     grant.add_argument("--note", required=True)
     grant.add_argument("--confirm-free-no-payment", action="store_true", required=True)
     args = parser.parse_args()
+    if args.command == "attach-demo-recording":
+        try:
+            result = demo_recording_service.attach(args.meeting_id)
+        except (AppError, ValueError) as exc:
+            raise SystemExit(
+                exc.detail["message"] if isinstance(exc, AppError) else str(exc)
+            ) from exc
+        print(f"Scripted speech sample attached privately ({result['duration_seconds']}s).")
+        return
     if args.command == "import-recording":
         try:
             result = recording_service.import_recording(args.meeting_id, args.file)

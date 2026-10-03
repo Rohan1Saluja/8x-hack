@@ -74,6 +74,7 @@ class MeetingOut(BaseModel):
     transcription_state: StageState
     summary_state: StageState
     failure_code: str | None
+    demo_seed_key: str | None = None
     recording_ready: bool
     duration_seconds: float | None = None
     lifecycle_state: LifecycleState

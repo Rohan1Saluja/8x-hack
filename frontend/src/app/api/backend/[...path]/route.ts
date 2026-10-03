@@ -9,19 +9,24 @@ const routes: Record<string, RegExp[]> = {
   GET: [
     /^me$/,
     /^integrations$/,
+    /^search$/,
     /^meetings$/,
     new RegExp(`^meetings/${uuid}$`),
     new RegExp(`^meetings/${uuid}/playback$`),
     new RegExp(`^meetings/${uuid}/evidence$`),
   ],
   POST: [
+    /^demo-seed$/,
     /^meetings$/,
     new RegExp(
-      `^meetings/${uuid}/(send|admit|advance|stop|retry-capture|transcribe|summarize|questions|recover)$`,
+      `^meetings/${uuid}/(send|admit|advance|stop|retry-capture|transcribe|summarize|questions|recover|highlights)$`,
     ),
   ],
   PATCH: [new RegExp(`^meetings/${uuid}/actions/${uuid}$`)],
-  DELETE: [new RegExp(`^meetings/${uuid}$`)],
+  DELETE: [
+    new RegExp(`^meetings/${uuid}$`),
+    new RegExp(`^meetings/${uuid}/highlights/${uuid}$`),
+  ],
 };
 const error = (status: number, message: string) =>
   Response.json(
@@ -54,17 +59,24 @@ async function forward(
   if (body && new TextEncoder().encode(body).byteLength > 16384)
     return error(413, "Request is too large.");
   try {
-    const response = await fetch(`${backend.replace(/\/$/, "")}/${path}`, {
-      method: request.method,
-      body,
-      cache: "no-store",
-      redirect: "error",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
+    const query =
+      path === "search"
+        ? `?${new URLSearchParams({ q: request.nextUrl.searchParams.get("q") || "" })}`
+        : "";
+    const response = await fetch(
+      `${backend.replace(/\/$/, "")}/${path}${query}`,
+      {
+        method: request.method,
+        body,
+        cache: "no-store",
+        redirect: "error",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        signal: AbortSignal.timeout(240000),
       },
-      signal: AbortSignal.timeout(240000),
-    });
+    );
     if (request.method === "GET" && path.endsWith("/playback") && response.ok) {
       try {
         return Response.json(await signPlayback(await response.json()), {

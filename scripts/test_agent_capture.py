@@ -85,6 +85,30 @@ class CaptureTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 capture.render(self.data)
 
+    def test_delayed_observations_append_without_rewriting_existing_entry(self):
+        self.data["exchanges"][0]["response_time"] = "2026-01-01T00:04:00Z"
+        path = capture.record(self.data, self.root)
+        before = path.read_bytes().decode()
+        self.data["exchanges"].append(dict(
+            self.data["exchanges"][0], prompt="Second synthetic prompt",
+            prompt_time="2026-01-01T00:02:00Z", response_time="2026-01-01T00:05:00Z"))
+        capture.record(self.data, self.root)
+        capture.unchanged_entries(before, path.read_bytes().decode())
+        self.assertEqual(capture.parse(path.read_bytes().decode())[1], self.data)
+
+    def test_decreasing_prompt_times_rejected(self):
+        self.data["exchanges"].append(dict(self.data["exchanges"][0],
+            prompt_time="2025-12-31T23:59:00Z", response_time="2026-01-01T00:05:00Z"))
+        with self.assertRaisesRegex(ValueError, "Nonchronological prompts"):
+            capture.render(self.data)
+
+    def test_decreasing_response_observations_rejected(self):
+        self.data["exchanges"][0]["response_time"] = "2026-01-01T00:04:00Z"
+        self.data["exchanges"].append(dict(self.data["exchanges"][0],
+            prompt_time="2026-01-01T00:02:00Z", response_time="2026-01-01T00:03:00Z"))
+        with self.assertRaisesRegex(ValueError, "Nonchronological response observations"):
+            capture.render(self.data)
+
     def test_duplicate_uuid_with_new_start_rejected(self):
         capture.record(self.data, self.root)
         self.data["exchanges"][0]["prompt_time"] = "2025-12-31T23:59:00Z"
